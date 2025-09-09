@@ -18,27 +18,32 @@ const Navbar = ({ onLoginClick, onCartClick, onLocationClick }) => {
           {/* Logo */}
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <h1 className="text-2xl font-bold">
-                <span className="text-yellow-400">blink</span>
-                <span className="text-green-500">it</span>
-              </h1>
+              <div className="relative">
+                <h1 className="text-3xl font-bold">
+                  <span className="text-yellow-400">क्षिप्र</span>
+                  <span className="text-green-500">म्</span>
+                </h1>
+                <p className="text-xs font-medium text-gray-500 tracking-widest uppercase absolute -bottom-4 left-1/2 transform -translate-x-1/2 whitespace-nowrap">
+                  swift • immediate
+                </p>
+              </div>
             </div>
           </div>
 
           {/* Delivery Info */}
           <div className="hidden md:flex items-center space-x-2">
-            <button 
+            <button
               onClick={onLocationClick}
               className="text-left hover:bg-gray-50 p-2 rounded-lg transition-colors"
             >
               <p className="text-lg font-semibold text-gray-900">Delivery in 8 minutes</p>
               <div className="flex items-center text-sm text-gray-600">
                 <span>
-                  {selectedAddress 
+                  {selectedAddress
                     ? `${selectedAddress.city || selectedAddress.formatted_address?.split(',')[1]?.trim() || 'Selected Location'}`
-                    : currentLocation 
-                    ? 'Current Location'
-                    : 'Gota, Ahmedabad, Gujarat, India'
+                    : currentLocation
+                      ? 'Current Location'
+                      : 'Gota, Ahmedabad, Gujarat, India'
                   }
                 </span>
                 <svg className="w-4 h-4 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -78,10 +83,10 @@ const Navbar = ({ onLoginClick, onCartClick, onLocationClick }) => {
                   <div className="hidden md:block text-right">
                     <div className="flex items-center space-x-1">
                       <span className="text-sm font-medium text-gray-900">Account</span>
-                      <svg 
-                        className={`w-4 h-4 text-gray-600 transition-transform duration-200 ${showProfileDropdown ? 'rotate-180' : ''}`} 
-                        fill="none" 
-                        stroke="currentColor" 
+                      <svg
+                        className={`w-4 h-4 text-gray-600 transition-transform duration-200 ${showProfileDropdown ? 'rotate-180' : ''}`}
+                        fill="none"
+                        stroke="currentColor"
                         viewBox="0 0 24 24"
                       >
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
@@ -95,8 +100,8 @@ const Navbar = ({ onLoginClick, onCartClick, onLocationClick }) => {
                     {(user.user_metadata?.full_name || user.email)[0].toUpperCase()}
                   </div>
                 </button>
-                
-                <ProfileDropdown 
+
+                <ProfileDropdown
                   isOpen={showProfileDropdown}
                   onClose={() => setShowProfileDropdown(false)}
                   user={user}
@@ -104,15 +109,15 @@ const Navbar = ({ onLoginClick, onCartClick, onLocationClick }) => {
                 />
               </div>
             ) : (
-              <button 
+              <button
                 onClick={onLoginClick}
                 className="text-gray-700 hover:text-gray-900 font-medium transition-colors duration-200"
               >
                 Login
               </button>
             )}
-            
-            <button 
+
+            <button
               onClick={onCartClick}
               className="bg-green-600 hover:bg-green-700 text-white p-3 rounded-lg transition-colors duration-200 relative group"
             >
