@@ -1,4 +1,5 @@
 import { useState, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth, useCart, useLocation } from '../../redux/hooks';
 import ProfileDropdown from './ProfileDropdown';
 import { BsCart4 } from 'react-icons/bs';
@@ -7,9 +8,14 @@ const Navbar = ({ onLoginClick, onCartClick, onLocationClick }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileButtonRef = useRef(null);
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { totalItems } = useCart();
   const { selectedAddress, currentLocation } = useLocation();
+
+  const handleLogoClick = () => {
+    navigate('/');
+  };
 
   return (
     <nav className="bg-white shadow-sm border-b border-gray-100 sticky top-0 z-50">
@@ -18,7 +24,10 @@ const Navbar = ({ onLoginClick, onCartClick, onLocationClick }) => {
           {/* Logo */}
           <div className="flex items-center">
             <div className="flex-shrink-0">
-              <div className="relative">
+              <div 
+                className="relative cursor-pointer hover:opacity-80 transition-opacity duration-200"
+                onClick={handleLogoClick}
+              >
                 <h1 className="text-3xl font-bold">
                   <span className="text-yellow-400">क्षिप्र</span>
                   <span className="text-green-500">म्</span>

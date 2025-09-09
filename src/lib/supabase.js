@@ -19,109 +19,167 @@ export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
 export const db = {
   // Categories
   getCategories: async () => {
-    const { data, error } = await supabase
-      .from('categories')
-      .select('*')
-      .eq('is_active', true)
-      .order('sort_order')
-    
-    if (error) throw error
-    return data
+    try {
+      const { data, error } = await supabase
+        .from('categories')
+        .select('*')
+        .eq('is_active', true)
+        .order('sort_order')
+      
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error fetching categories:', error)
+      throw error
+    }
   },
 
   // Products
   getProducts: async (categoryId = null, limit = 20, offset = 0) => {
-    let query = supabase
-      .from('products')
-      .select(`
-        *,
-        categories (name, slug)
-      `)
-      .eq('is_active', true)
-      .order('created_at', { ascending: false })
-      .range(offset, offset + limit - 1)
+    try {
+      let query = supabase
+        .from('products')
+        .select(`
+          *,
+          categories (name, slug)
+        `)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1)
 
-    if (categoryId) {
-      query = query.eq('category_id', categoryId)
+      if (categoryId) {
+        query = query.eq('category_id', categoryId)
+      }
+
+      const { data, error } = await query
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error fetching products:', error)
+      throw error
     }
-
-    const { data, error } = await query
-    if (error) throw error
-    return data
   },
 
   searchProducts: async (searchTerm, limit = 20) => {
-    const { data, error } = await supabase
-      .from('products')
-      .select(`
-        *,
-        categories (name, slug)
-      `)
-      .eq('is_active', true)
-      .or(`name.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,tags.cs.{${searchTerm}}`)
-      .limit(limit)
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select(`
+          *,
+          categories (name, slug)
+        `)
+        .eq('is_active', true)
+        .or(`name.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,tags.cs.{${searchTerm}}`)
+        .limit(limit)
 
-    if (error) throw error
-    return data
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error searching products:', error)
+      throw error
+    }
   },
 
   getProductsByCategory: async (categorySlug, limit = 6) => {
-    const { data, error } = await supabase
-      .from('products')
-      .select(`
-        id,
-        name,
-        price,
-        unit,
-        image_url,
-        delivery_time,
-        categories!inner(slug)
-      `)
-      .eq('is_active', true)
-      .eq('categories.slug', categorySlug)
-      .limit(limit)
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select(`
+          id,
+          name,
+          price,
+          unit,
+          image_url,
+          delivery_time,
+          categories!inner(slug)
+        `)
+        .eq('is_active', true)
+        .eq('categories.slug', categorySlug)
+        .limit(limit)
 
-    if (error) throw error
-    return data?.map(product => ({
-      id: product.id,
-      name: product.name,
-      price: product.price,
-      quantity: product.unit,
-      image: product.image_url,
-      time: `${product.delivery_time} MINS`
-    })) || []
+      if (error) throw error
+      return data?.map(product => ({
+        id: product.id,
+        name: product.name,
+        price: product.price,
+        quantity: product.unit,
+        image: product.image_url,
+        time: `${product.delivery_time} MINS`
+      })) || []
+    } catch (error) {
+      console.error('Error fetching products by category:', error)
+      throw error
+    }
+  },
+
+  getAllProductsByCategory: async (categorySlug) => {
+    try {
+      const { data, error } = await supabase
+        .from('products')
+        .select(`
+          id,
+          name,
+          price,
+          mrp,
+          unit,
+          image_url,
+          delivery_time,
+          brand,
+          description,
+          categories!inner(name, slug)
+        `)
+        .eq('is_active', true)
+        .eq('categories.slug', categorySlug)
+        .order('name')
+
+      if (error) throw error
+      return data || []
+    } catch (error) {
+      console.error('Error fetching all products by category:', error)
+      throw error
+    }
   },
 
   // Stores
   getNearbyStores: async (latitude, longitude, radiusKm = 10) => {
-    // Simple query since RPC function doesn't exist in fresh schema
-    const { data, error } = await supabase
-      .from('stores')
-      .select('*')
-      .limit(10)
+    try {
+      // Simple query since RPC function doesn't exist in fresh schema
+      const { data, error } = await supabase
+        .from('stores')
+        .select('*')
+        .limit(10)
 
-    if (error) throw error
-    return data || []
+      if (error) throw error
+      return data || []
+    } catch (error) {
+      console.error('Error fetching nearby stores:', error)
+      throw error
+    }
   },
 
   // Cart operations
   getCartItems: async (userId) => {
-    const { data, error } = await supabase
-      .from('cart_items')
-      .select(`
-        *,
-        products (
-          id,
-          name,
-          price,
-          image_url,
-          unit
-        )
-      `)
-      .eq('user_id', userId)
+    try {
+      const { data, error } = await supabase
+        .from('cart_items')
+        .select(`
+          *,
+          products (
+            id,
+            name,
+            price,
+            image_url,
+            unit
+          )
+        `)
+        .eq('user_id', userId)
 
-    if (error) throw error
-    return data
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error fetching cart items:', error)
+      throw error
+    }
   },
 
   // Get product stock information
@@ -174,218 +232,308 @@ export const db = {
   },
 
   addToCart: async (userId, productId, quantity = 1) => {
-    const { data, error } = await supabase
-      .from('cart_items')
-      .upsert({
-        user_id: userId,
-        product_id: productId,
-        quantity: quantity
-      }, {
-        onConflict: 'user_id,product_id'
-      })
+    try {
+      const { data, error } = await supabase
+        .from('cart_items')
+        .upsert({
+          user_id: userId,
+          product_id: productId,
+          quantity: quantity
+        }, {
+          onConflict: 'user_id,product_id'
+        })
 
-    if (error) throw error
-    return data
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error adding to cart:', error)
+      throw error
+    }
   },
 
   updateCartItem: async (userId, productId, quantity) => {
-    if (quantity <= 0) {
-      return await supabase
+    try {
+      if (quantity <= 0) {
+        return await supabase
+          .from('cart_items')
+          .delete()
+          .eq('user_id', userId)
+          .eq('product_id', productId)
+      }
+
+      const { data, error } = await supabase
+        .from('cart_items')
+        .update({ quantity })
+        .eq('user_id', userId)
+        .eq('product_id', productId)
+
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error updating cart item:', error)
+      throw error
+    }
+  },
+
+  removeFromCart: async (userId, productId) => {
+    try {
+      const { data, error } = await supabase
         .from('cart_items')
         .delete()
         .eq('user_id', userId)
         .eq('product_id', productId)
+
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error removing from cart:', error)
+      throw error
     }
-
-    const { data, error } = await supabase
-      .from('cart_items')
-      .update({ quantity })
-      .eq('user_id', userId)
-      .eq('product_id', productId)
-
-    if (error) throw error
-    return data
-  },
-
-  removeFromCart: async (userId, productId) => {
-    const { data, error } = await supabase
-      .from('cart_items')
-      .delete()
-      .eq('user_id', userId)
-      .eq('product_id', productId)
-
-    if (error) throw error
-    return data
   },
 
   clearCart: async (userId) => {
-    const { data, error } = await supabase
-      .from('cart_items')
-      .delete()
-      .eq('user_id', userId)
+    try {
+      const { data, error } = await supabase
+        .from('cart_items')
+        .delete()
+        .eq('user_id', userId)
 
-    if (error) throw error
-    return data
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error clearing cart:', error)
+      throw error
+    }
   },
 
   // User addresses
   getUserAddresses: async (userId) => {
-    const { data, error } = await supabase
-      .from('addresses')
-      .select('*')
-      .eq('user_id', userId)
-      .order('is_default', { ascending: false })
+    try {
+      const { data, error } = await supabase
+        .from('addresses')
+        .select('*')
+        .eq('user_id', userId)
+        .order('is_default', { ascending: false })
 
-    if (error) throw error
-    return data
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error fetching user addresses:', error)
+      throw error
+    }
   },
 
   addAddress: async (addressData) => {
-    const { data, error } = await supabase
-      .from('addresses')
-      .insert(addressData)
-      .select()
+    try {
+      const { data, error } = await supabase
+        .from('addresses')
+        .insert(addressData)
+        .select()
 
-    if (error) throw error
-    return data[0]
+      if (error) throw error
+      return data[0]
+    } catch (error) {
+      console.error('Error adding address:', error)
+      throw error
+    }
   },
 
   updateAddress: async (addressId, addressData) => {
-    const { data, error } = await supabase
-      .from('addresses')
-      .update(addressData)
-      .eq('id', addressId)
-      .select()
+    try {
+      const { data, error } = await supabase
+        .from('addresses')
+        .update(addressData)
+        .eq('id', addressId)
+        .select()
 
-    if (error) throw error
-    return data[0]
+      if (error) throw error
+      return data[0]
+    } catch (error) {
+      console.error('Error updating address:', error)
+      throw error
+    }
   },
 
   deleteAddress: async (addressId) => {
-    const { data, error } = await supabase
-      .from('addresses')
-      .delete()
-      .eq('id', addressId)
+    try {
+      const { data, error } = await supabase
+        .from('addresses')
+        .delete()
+        .eq('id', addressId)
 
-    if (error) throw error
-    return data
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error deleting address:', error)
+      throw error
+    }
   },
 
   // Orders
   createOrder: async (orderData) => {
-    const { data, error } = await supabase
-      .from('orders')
-      .insert(orderData)
-      .select()
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .insert(orderData)
+        .select()
 
-    if (error) throw error
-    return data[0]
+      if (error) throw error
+      return data[0]
+    } catch (error) {
+      console.error('Error creating order:', error)
+      throw error
+    }
   },
 
   getUserOrders: async (userId, limit = 20) => {
-    const { data, error } = await supabase
-      .from('orders')
-      .select(`
-        *,
-        order_items (
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
           *,
-          products (name, image_url)
-        ),
-        addresses (*)
-      `)
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(limit)
+          order_items (
+            *,
+            products (name, image_url)
+          ),
+          addresses (*)
+        `)
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(limit)
 
-    if (error) throw error
-    return data
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error fetching user orders:', error)
+      throw error
+    }
   },
 
   getOrderById: async (orderId) => {
-    const { data, error } = await supabase
-      .from('orders')
-      .select(`
-        *,
-        order_items (
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
           *,
-          products (*)
-        ),
-        addresses (*),
-        stores (*)
-      `)
-      .eq('id', orderId)
-      .single()
+          order_items (
+            *,
+            products (*)
+          ),
+          addresses (*),
+          stores (*)
+        `)
+        .eq('id', orderId)
+        .single()
 
-    if (error) throw error
-    return data
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error fetching order by ID:', error)
+      throw error
+    }
   },
 
   // Notifications
   getUserNotifications: async (userId, limit = 50) => {
-    const { data, error } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(limit)
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(limit)
 
-    if (error) throw error
-    return data
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error fetching user notifications:', error)
+      throw error
+    }
   },
 
   markNotificationAsRead: async (notificationId) => {
-    const { data, error } = await supabase
-      .from('notifications')
-      .update({ is_read: true })
-      .eq('id', notificationId)
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('id', notificationId)
 
-    if (error) throw error
-    return data
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error marking notification as read:', error)
+      throw error
+    }
   }
 }
 
 // Auth helper functions
 export const auth = {
   signUp: async (email, password, userData = {}) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-      options: {
-        data: userData
-      }
-    })
+    try {
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: userData
+        }
+      })
 
-    if (error) throw error
-    return data
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error signing up:', error)
+      throw error
+    }
   },
 
   signIn: async (email, password) => {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email,
-      password
-    })
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
+      })
 
-    if (error) throw error
-    return data
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error signing in:', error)
+      throw error
+    }
   },
 
   signOut: async () => {
-    const { error } = await supabase.auth.signOut()
-    if (error) throw error
+    try {
+      const { error } = await supabase.auth.signOut()
+      if (error) throw error
+    } catch (error) {
+      console.error('Error signing out:', error)
+      throw error
+    }
   },
 
   getCurrentUser: async () => {
-    const { data: { user }, error } = await supabase.auth.getUser()
-    if (error) throw error
-    return user
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser()
+      if (error) throw error
+      return user
+    } catch (error) {
+      console.error('Error getting current user:', error)
+      throw error
+    }
   },
 
   updateProfile: async (updates) => {
-    const { data, error } = await supabase.auth.updateUser({
-      data: updates
-    })
+    try {
+      const { data, error } = await supabase.auth.updateUser({
+        data: updates
+      })
 
-    if (error) throw error
-    return data
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error updating profile:', error)
+      throw error
+    }
   }
 }

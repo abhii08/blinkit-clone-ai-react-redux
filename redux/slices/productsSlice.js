@@ -38,6 +38,18 @@ export const fetchProductsByCategory = createAsyncThunk(
   }
 );
 
+export const fetchAllProductsByCategory = createAsyncThunk(
+  'products/fetchAllByCategory',
+  async ({ categorySlug }, { rejectWithValue }) => {
+    try {
+      const products = await db.getAllProductsByCategory(categorySlug);
+      return { products, categorySlug };
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to fetch all products by category');
+    }
+  }
+);
+
 export const searchProducts = createAsyncThunk(
   'products/search',
   async ({ searchTerm, limit = 20 }, { rejectWithValue }) => {
@@ -59,17 +71,20 @@ const initialState = {
     'snacks-munchies': [],
     'cold-drinks-juices': [],
   },
+  allProductsByCategory: {},
   searchResults: [],
   loading: {
     categories: false,
     products: false,
     productsByCategory: false,
+    allProductsByCategory: false,
     search: false,
   },
   error: {
     categories: null,
     products: null,
     productsByCategory: null,
+    allProductsByCategory: null,
     search: null,
   },
   searchTerm: '',
@@ -86,6 +101,7 @@ const productsSlice = createSlice({
         categories: null,
         products: null,
         productsByCategory: null,
+        allProductsByCategory: null,
         search: null,
       };
     },
@@ -159,6 +175,20 @@ const productsSlice = createSlice({
       .addCase(fetchProductsByCategory.rejected, (state, action) => {
         state.loading.productsByCategory = false;
         state.error.productsByCategory = action.payload;
+      })
+      // Fetch All Products by Category
+      .addCase(fetchAllProductsByCategory.pending, (state) => {
+        state.loading.allProductsByCategory = true;
+        state.error.allProductsByCategory = null;
+      })
+      .addCase(fetchAllProductsByCategory.fulfilled, (state, action) => {
+        state.loading.allProductsByCategory = false;
+        const { products, categorySlug } = action.payload;
+        state.allProductsByCategory[categorySlug] = products || [];
+      })
+      .addCase(fetchAllProductsByCategory.rejected, (state, action) => {
+        state.loading.allProductsByCategory = false;
+        state.error.allProductsByCategory = action.payload;
       })
       // Search Products
       .addCase(searchProducts.pending, (state) => {

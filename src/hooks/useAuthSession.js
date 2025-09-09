@@ -3,6 +3,7 @@ import { useDispatch } from 'react-redux';
 import { supabase } from '../lib/supabase';
 import { setUser, clearUser } from '../../redux/slices/authSlice';
 import { fetchCartItems } from '../../redux/slices/cartSlice';
+import { useAuth } from '../../redux/hooks';
 
 // Custom hook to handle authentication session management
 export const useAuthSession = () => {
@@ -11,16 +12,20 @@ export const useAuthSession = () => {
   useEffect(() => {
     // Get initial session
     const getInitialSession = async () => {
-      const { data: { session }, error } = await supabase.auth.getSession();
-      if (error) {
-        console.error('Error getting session:', error);
-        return;
-      }
-      
-      if (session?.user) {
-        dispatch(setUser(session.user));
-        // Fetch cart items for authenticated user
-        dispatch(fetchCartItems(session.user.id));
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession();
+        if (error) {
+          console.error('Error getting session:', error);
+          return;
+        }
+        
+        if (session?.user) {
+          dispatch(setUser(session.user));
+          // Fetch cart items for authenticated user
+          dispatch(fetchCartItems(session.user.id));
+        }
+      } catch (error) {
+        console.error('Error in getInitialSession:', error);
       }
     };
 
@@ -29,31 +34,35 @@ export const useAuthSession = () => {
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        console.log('Auth state changed:', event, session?.user?.email);
-        
-        switch (event) {
-          case 'SIGNED_IN':
-            if (session?.user) {
-              dispatch(setUser(session.user));
-              // Fetch cart items for newly signed in user
-              dispatch(fetchCartItems(session.user.id));
-            }
-            break;
-          case 'SIGNED_OUT':
-            dispatch(clearUser());
-            break;
-          case 'TOKEN_REFRESHED':
-            if (session?.user) {
-              dispatch(setUser(session.user));
-            }
-            break;
-          case 'USER_UPDATED':
-            if (session?.user) {
-              dispatch(setUser(session.user));
-            }
-            break;
-          default:
-            break;
+        try {
+          console.log('Auth state changed:', event, session?.user?.email);
+          
+          switch (event) {
+            case 'SIGNED_IN':
+              if (session?.user) {
+                dispatch(setUser(session.user));
+                // Fetch cart items for newly signed in user
+                dispatch(fetchCartItems(session.user.id));
+              }
+              break;
+            case 'SIGNED_OUT':
+              dispatch(clearUser());
+              break;
+            case 'TOKEN_REFRESHED':
+              if (session?.user) {
+                dispatch(setUser(session.user));
+              }
+              break;
+            case 'USER_UPDATED':
+              if (session?.user) {
+                dispatch(setUser(session.user));
+              }
+              break;
+            default:
+              break;
+          }
+        } catch (error) {
+          console.error('Error in auth state change handler:', error);
         }
       }
     );

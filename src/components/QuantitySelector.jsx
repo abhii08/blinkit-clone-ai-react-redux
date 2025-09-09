@@ -9,6 +9,12 @@ const QuantitySelector = ({ product, className = "" }) => {
   const { dispatch: uiDispatch } = useUI();
   const [isAnimating, setIsAnimating] = useState(false);
   
+  // Safety check for product
+  if (!product || !product.id) {
+    console.error('QuantitySelector: product prop is missing or invalid', product);
+    return null;
+  }
+  
   // Get current quantity from cart (check both authenticated and local cart)
   const allItems = [...cartItems, ...localItems];
   const cartItem = allItems.find(item => item.product_id === product.id);
@@ -94,20 +100,20 @@ const QuantitySelector = ({ product, className = "" }) => {
 
   // Show quantity selector when quantity > 0
   return (
-    <div className={`flex items-center bg-green-600 rounded overflow-hidden transition-all duration-300 transform ${
+    <div className={`flex items-center justify-center bg-green-600 rounded-lg w-full max-w-[120px] mx-auto transition-all duration-300 transform ${
       isAnimating ? 'scale-95' : ''
     } ${className}`}>
       {/* Decrement Button */}
       <button
         onClick={handleRemove}
         disabled={isAnimating}
-        className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 text-lg font-bold transition-colors duration-200 disabled:opacity-70 flex items-center justify-center min-w-[28px]"
+        className="bg-green-600 hover:bg-green-700 text-white w-8 h-8 text-lg font-bold transition-colors duration-200 disabled:opacity-70 flex items-center justify-center rounded-l-lg"
       >
         −
       </button>
       
       {/* Quantity Display */}
-      <div className="bg-green-600 text-white px-3 py-1 text-sm font-semibold min-w-[32px] text-center flex items-center justify-center">
+      <div className="bg-green-600 text-white flex-1 h-8 text-sm font-semibold flex items-center justify-center">
         <span className={`transition-all duration-200 ${isAnimating ? 'scale-110' : ''}`}>
           {currentQuantity}
         </span>
@@ -117,7 +123,7 @@ const QuantitySelector = ({ product, className = "" }) => {
       <button
         onClick={handleAdd}
         disabled={isAnimating}
-        className="bg-green-600 hover:bg-green-700 text-white px-2 py-1 text-lg font-bold transition-colors duration-200 disabled:opacity-70 flex items-center justify-center min-w-[28px]"
+        className="bg-green-600 hover:bg-green-700 text-white w-8 h-8 text-lg font-bold transition-colors duration-200 disabled:opacity-70 flex items-center justify-center rounded-r-lg"
       >
         +
       </button>

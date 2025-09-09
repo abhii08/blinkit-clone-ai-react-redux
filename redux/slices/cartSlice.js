@@ -115,7 +115,10 @@ const cartSlice = createSlice({
       const allItems = [...state.items, ...state.localItems];
       state.totalItems = allItems.reduce((total, item) => total + item.quantity, 0);
       state.totalAmount = allItems.reduce(
-        (total, item) => total + (item.products?.price || item.price || 0) * item.quantity,
+        (total, item) => {
+          const price = item.products?.price || item.product?.price || item.price || 0;
+          return total + price * item.quantity;
+        },
         0
       );
     },
@@ -131,12 +134,12 @@ const cartSlice = createSlice({
           product_id: product.id,
           quantity,
           price: product.price,
-          products: {
+          product: {
             id: product.id,
             name: product.name,
             price: product.price,
-            image: product.image,
-            unit: product.quantity
+            image_url: product.image_url || product.image,
+            unit: product.unit || product.quantity
           }
         });
       }

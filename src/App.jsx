@@ -1,17 +1,14 @@
 import { useEffect } from 'react';
 import { Provider } from 'react-redux';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { store } from '../redux/store';
-import { useProducts, useUI } from '../redux/hooks';
-import { fetchProductsByCategory } from '../redux/slices/productsSlice';
+import { useUI } from '../redux/hooks';
 import { openAuthModal, openLocationSelector } from '../redux/slices/uiSlice';
 import { toggleCart } from '../redux/slices/cartSlice';
 import { useAuthSession } from './hooks/useAuthSession';
 import Navbar from './components/Navbar';
-import HeroSection from './components/HeroSection';
-import PromoCards from './components/PromoCards';
-import CategoryGrid from './components/CategoryGrid';
-import ProductSection from './components/ProductSection';
-import Footer from './components/Footer';
+import HomePage from './components/HomePage';
+import CategoryPage from './components/CategoryPage';
 import AuthModal from './components/AuthModal';
 import CartSidebar from './components/CartSidebar';
 import LocationSelector from './components/LocationSelector';
@@ -19,12 +16,10 @@ import './App.css';
 
 
 function AppContent() {
-  const { productsByCategory, loading, dispatch } = useProducts();
-  const { modals } = useUI();
+  const { modals, dispatch } = useUI();
   
   // Initialize auth session management
   useAuthSession();
-
 
   const handleLogin = () => {
     dispatch(openAuthModal('login'));
@@ -38,14 +33,6 @@ function AppContent() {
     dispatch(openLocationSelector());
   };
 
-  // Fetch products by category
-  useEffect(() => {
-    const categories = ['dairy-bread-eggs', 'sweet-tooth', 'snacks-munchies', 'cold-drinks-juices'];
-    categories.forEach(categorySlug => {
-      dispatch(fetchProductsByCategory({ categorySlug, limit: 6 }));
-    });
-  }, [dispatch]);
-
   return (
     <div className="min-h-screen bg-white">
       <Navbar 
@@ -53,43 +40,11 @@ function AppContent() {
         onCartClick={handleCartClick}
         onLocationClick={handleLocationClick}
       />
-            <HeroSection />
-            <PromoCards />
-            <CategoryGrid />
-            
-      {/* Product Sections */}
-      {loading.productsByCategory ? (
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
-            <p className="mt-4 text-gray-600">Loading products...</p>
-          </div>
-        </div>
-      ) : (
-        <>
-          <ProductSection 
-            title="Dairy, Bread & Eggs" 
-            products={productsByCategory['dairy-bread-eggs'] || []}
-          />
-          
-          <ProductSection 
-            title="Sweet Tooth" 
-            products={productsByCategory['sweet-tooth'] || []}
-          />
-          
-          <ProductSection 
-            title="Snacks & Munchies" 
-            products={productsByCategory['snacks-munchies'] || []}
-          />
-          
-          <ProductSection 
-            title="Cold Drinks & Juices" 
-            products={productsByCategory['cold-drinks-juices'] || []}
-          />
-        </>
-      )}
       
-      <Footer />
+      <Routes>
+        <Route path="/" element={<HomePage />} />
+        <Route path="/category/:categorySlug" element={<CategoryPage />} />
+      </Routes>
 
       {/* Modals */}
       <AuthModal
@@ -109,7 +64,9 @@ function AppContent() {
 function App() {
   return (
     <Provider store={store}>
-      <AppContent />
+      <Router>
+        <AppContent />
+      </Router>
     </Provider>
   );
 }
