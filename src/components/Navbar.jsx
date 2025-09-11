@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth, useCart, useLocation } from '../../redux/hooks';
 import ProfileDropdown from './ProfileDropdown';
 import { BsCart4 } from 'react-icons/bs';
+import dhipramLogo from '../assets/dhipram-logo.svg';
 
 const Navbar = ({ onLoginClick, onCartClick, onLocationClick }) => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -14,7 +15,7 @@ const Navbar = ({ onLoginClick, onCartClick, onLocationClick }) => {
   const { selectedAddress, currentLocation } = useLocation();
 
   const handleLogoClick = () => {
-    navigate('/');
+    navigate('/home');
   };
 
   return (

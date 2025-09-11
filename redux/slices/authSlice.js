@@ -7,9 +7,23 @@ export const signUpUser = createAsyncThunk(
   async ({ email, password, userData }, { rejectWithValue }) => {
     try {
       const data = await auth.signUp(email, password, userData);
+      
+      // If email confirmation is required, return the data with a specific message
+      if (data?.requires_confirmation) {
+        return { 
+          user: data.user, 
+          requiresConfirmation: true,
+          message: data.message 
+        };
+      }
+      
       return data;
     } catch (error) {
-      return rejectWithValue(error.message);
+      // Handle specific error cases with better messages
+      if (error.message.includes('already registered')) {
+        return rejectWithValue('This email is already registered. Please sign in or reset your password.');
+      }
+      return rejectWithValue(error.message || 'Failed to sign up. Please try again.');
     }
   }
 );
@@ -19,9 +33,25 @@ export const signInUser = createAsyncThunk(
   async ({ email, password }, { rejectWithValue }) => {
     try {
       const data = await auth.signIn(email, password);
+      
+      // Double-check if email is confirmed
+      if (data?.user && !data.user.email_confirmed_at) {
+        throw new Error('Please confirm your email before signing in.');
+      }
+      
       return data;
     } catch (error) {
-      return rejectWithValue(error.message);
+      // Handle specific error cases with better messages
+      if (error.message.includes('Email not confirmed')) {
+        return rejectWithValue('Please confirm your email before signing in. Check your inbox for the confirmation email.');
+      }
+      if (error.message.includes('Invalid login credentials')) {
+        return rejectWithValue('Invalid email or password. Please try again.');
+      }
+      if (error.message.includes('rate limit')) {
+        return rejectWithValue('Too many attempts. Please try again later.');
+      }
+      return rejectWithValue(error.message || 'Failed to sign in. Please try again.');
     }
   }
 );
@@ -67,6 +97,8 @@ const initialState = {
   isAuthenticated: false,
   loading: false,
   error: null,
+  message: null,
+  requiresConfirmation: false,
   initialized: false,
 };
 
@@ -76,6 +108,13 @@ const authSlice = createSlice({
   reducers: {
     clearError: (state) => {
       state.error = null;
+      state.message = null;
+    },
+    clearMessage: (state) => {
+      state.message = null;
+    },
+    setRequiresConfirmation: (state, action) => {
+      state.requiresConfirmation = action.payload;
     },
     setUser: (state, action) => {
       state.user = action.payload;
@@ -93,15 +132,23 @@ const authSlice = createSlice({
       .addCase(signUpUser.pending, (state) => {
         state.loading = true;
         state.error = null;
+        state.requiresConfirmation = false;
       })
       .addCase(signUpUser.fulfilled, (state, action) => {
         state.loading = false;
         state.user = action.payload.user;
         state.isAuthenticated = !!action.payload.user;
+        state.requiresConfirmation = action.payload.requiresConfirmation || false;
+        
+        // If email confirmation is required, set a success message
+        if (action.payload.requiresConfirmation && action.payload.message) {
+          state.message = action.payload.message;
+        }
       })
       .addCase(signUpUser.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
+        state.requiresConfirmation = false;
       })
       // Sign In
       .addCase(signInUser.pending, (state) => {

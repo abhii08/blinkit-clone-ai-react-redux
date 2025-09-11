@@ -464,6 +464,274 @@ export const db = {
       console.error('Error marking notification as read:', error)
       throw error
     }
+  },
+
+  // Enhanced Order Management
+  createOrder: async (orderData) => {
+    try {
+      // Separate order items from order data
+      const { order_items, ...orderInfo } = orderData;
+      
+      // Create the order first
+      const { data: order, error: orderError } = await supabase
+        .from('orders')
+        .insert({
+          ...orderInfo,
+          status: 'pending',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select('*')
+        .single()
+
+      if (orderError) throw orderError
+
+      // Create order items if they exist
+      if (order_items && order_items.length > 0) {
+        const orderItemsWithOrderId = order_items.map(item => ({
+          ...item,
+          order_id: order.id
+        }));
+
+        const { error: itemsError } = await supabase
+          .from('order_items')
+          .insert(orderItemsWithOrderId);
+
+        if (itemsError) throw itemsError;
+      }
+
+      // Return the order with items
+      const { data: fullOrder, error: fetchError } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items (
+            *,
+            products (*)
+          ),
+          addresses (*)
+        `)
+        .eq('id', order.id)
+        .single();
+
+      if (fetchError) throw fetchError;
+      return fullOrder;
+    } catch (error) {
+      console.error('Error creating order:', error)
+      throw error
+    }
+  },
+
+  updateOrderStatus: async (orderId, status, agentId = null) => {
+    try {
+      const updateData = {
+        status,
+        updated_at: new Date().toISOString()
+      }
+      
+      if (agentId) {
+        updateData.delivery_agent_id = agentId
+      }
+
+      const { data, error } = await supabase
+        .from('orders')
+        .update(updateData)
+        .eq('id', orderId)
+        .select(`
+          *,
+          order_items (
+            *,
+            products (*)
+          ),
+          addresses (*),
+          delivery_agents (*)
+        `)
+        .single()
+
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error updating order status:', error)
+      throw error
+    }
+  },
+
+  assignDeliveryAgent: async (orderId, agentId) => {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .update({
+          delivery_agent_id: agentId,
+          status: 'confirmed',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', orderId)
+        .select(`
+          *,
+          order_items (
+            *,
+            products (*)
+          ),
+          addresses (*),
+          delivery_agents (*)
+        `)
+        .single()
+
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error assigning delivery agent:', error)
+      throw error
+    }
+  },
+
+  // Delivery Agent Management
+  getAvailableDeliveryAgents: async (latitude, longitude, radius = 5) => {
+    try {
+      // Simple query for available agents - in production, use PostGIS for location queries
+      const { data, error } = await supabase
+        .from('delivery_agents')
+        .select('*')
+        .eq('status', 'available')
+        .eq('is_active', true)
+        .limit(10)
+
+      if (error) throw error
+      return data || []
+    } catch (error) {
+      console.error('Error fetching available delivery agents:', error)
+      throw error
+    }
+  },
+
+  updateAgentLocation: async (agentId, latitude, longitude) => {
+    try {
+      const { data, error } = await supabase
+        .from('delivery_agents')
+        .update({
+          latitude,
+          longitude,
+          last_location_update: new Date().toISOString()
+        })
+        .eq('id', agentId)
+
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error updating agent location:', error)
+      throw error
+    }
+  },
+
+  updateAgentStatus: async (agentId, status) => {
+    try {
+      const { data, error } = await supabase
+        .from('delivery_agents')
+        .update({
+          status,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', agentId)
+
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error updating agent status:', error)
+      throw error
+    }
+  },
+
+  getAgentOrders: async (agentId) => {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items (
+            *,
+            products (*)
+          ),
+          stores (*)
+        `)
+        .eq('delivery_agent_id', agentId)
+        .in('status', ['confirmed', 'preparing', 'out_for_delivery'])
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+      return data || []
+    } catch (error) {
+      console.error('Error fetching agent orders:', error)
+      throw error
+    }
+  },
+
+  startDelivery: async (orderId, agentId) => {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .update({
+          status: 'out_for_delivery',
+          delivery_started_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', orderId)
+        .eq('delivery_agent_id', agentId)
+        .select()
+        .single()
+
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error starting delivery:', error)
+      throw error
+    }
+  },
+
+  completeDelivery: async (orderId, agentId) => {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .update({
+          status: 'delivered',
+          delivered_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', orderId)
+        .eq('delivery_agent_id', agentId)
+        .select()
+        .single()
+
+      if (error) throw error
+      return data
+    } catch (error) {
+      console.error('Error completing delivery:', error)
+      throw error
+    }
+  },
+
+  // Real-time tracking
+  subscribeToOrderUpdates: (orderId, callback) => {
+    return supabase
+      .channel(`order-${orderId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'orders',
+        filter: `id=eq.${orderId}`
+      }, callback)
+      .subscribe()
+  },
+
+  subscribeToAgentLocation: (agentId, callback) => {
+    return supabase
+      .channel(`agent-${agentId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'delivery_agents',
+        filter: `id=eq.${agentId}`
+      }, callback)
+      .subscribe()
   }
 }
 
@@ -475,11 +743,53 @@ export const auth = {
         email,
         password,
         options: {
-          data: userData
+          emailRedirectTo: window.location.origin + '/auth/callback',
+          data: {
+            ...userData,
+            user_type: userData.user_type || 'user', // Default to 'user' if not specified
+            email_verified: false
+          }
         }
       })
 
-      if (error) throw error
+      if (error) {
+        // Handle specific error cases
+        if (error.message.includes('already registered')) {
+          // Check if user exists but email isn't confirmed
+          const { data: { users }, error: usersError } = await supabase.auth.admin.listUsers()
+          if (usersError) throw usersError
+          
+          const existingUser = users.find(u => u.email === email)
+          if (existingUser && !existingUser.email_confirmed_at) {
+            // Resend confirmation email
+            const { error: resendError } = await supabase.auth.resend({
+              type: 'signup',
+              email,
+              options: {
+                emailRedirectTo: window.location.origin + '/auth/callback'
+              }
+            })
+            
+            if (resendError) {
+              console.error('Error resending confirmation:', resendError)
+              throw new Error('Failed to resend confirmation email. Please try again.')
+            }
+            
+            throw new Error('Please check your email to confirm your account. A new confirmation email has been sent.')
+          }
+        }
+        throw error
+      }
+      
+      if (data.user && !data.user.email_confirmed_at) {
+        // Email confirmation required
+        return {
+          ...data,
+          requires_confirmation: true,
+          message: 'Please check your email to confirm your account before signing in.'
+        }
+      }
+      
       return data
     } catch (error) {
       console.error('Error signing up:', error)
@@ -494,7 +804,36 @@ export const auth = {
         password
       })
 
-      if (error) throw error
+      if (error) {
+        // Check for email not confirmed error
+        if (error.message.includes('Email not confirmed')) {
+          // Get the user to check confirmation status
+          const { data: { user }, error: userError } = await supabase.auth.getUser()
+          if (userError) throw userError
+          
+          // If user exists but email isn't confirmed
+          if (user && !user.email_confirmed_at) {
+            // Resend confirmation email
+            const { error: resendError } = await supabase.auth.resend({
+              type: 'signup',
+              email,
+              options: {
+                emailRedirectTo: window.location.origin + '/auth/callback'
+              }
+            })
+            
+            if (resendError) console.error('Error resending confirmation:', resendError)
+            throw new Error('Please confirm your email before signing in. A new confirmation email has been sent.')
+          }
+        }
+        throw error
+      }
+      
+      // Double-check email confirmation status
+      if (data.user && !data.user.email_confirmed_at) {
+        throw new Error('Please confirm your email before signing in.')
+      }
+      
       return data
     } catch (error) {
       console.error('Error signing in:', error)

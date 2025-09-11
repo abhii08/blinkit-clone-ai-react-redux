@@ -65,12 +65,7 @@ export const searchProducts = createAsyncThunk(
 const initialState = {
   categories: [],
   products: [],
-  productsByCategory: {
-    'dairy-bread-eggs': [],
-    'sweet-tooth': [],
-    'snacks-munchies': [],
-    'cold-drinks-juices': [],
-  },
+  productsByCategory: {},
   allProductsByCategory: {},
   searchResults: [],
   loading: {
@@ -168,9 +163,7 @@ const productsSlice = createSlice({
       .addCase(fetchProductsByCategory.fulfilled, (state, action) => {
         state.loading.productsByCategory = false;
         const { products, categorySlug } = action.payload;
-        if (state.productsByCategory[categorySlug] !== undefined) {
-          state.productsByCategory[categorySlug] = products || [];
-        }
+        state.productsByCategory[categorySlug] = products || [];
       })
       .addCase(fetchProductsByCategory.rejected, (state, action) => {
         state.loading.productsByCategory = false;

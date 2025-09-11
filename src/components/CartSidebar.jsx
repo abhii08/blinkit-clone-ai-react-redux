@@ -1,9 +1,11 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
-import { useCart, useAuth } from '../../redux/hooks/index.js';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { useCart, useAuth, useUI } from '../../redux/hooks/index.js';
 import { updateCartItemQuantity, removeItemFromCart, addItemToCart, closeCart, incrementLocalItem, decrementLocalItem, removeLocalItem } from '../../redux/slices/cartSlice';
 import { db } from '../lib/supabase';
 
 const CartSidebar = () => {
+  const navigate = useNavigate();
   const { items: cartItems, localItems, totalAmount, totalItems, loading, isOpen, dispatch } = useCart();
   const { user } = useAuth();
   const [processingItems, setProcessingItems] = useState(new Set());
@@ -441,10 +443,14 @@ const CartSidebar = () => {
                 </div>
                 
                 <button
+                  onClick={() => {
+                    dispatch(closeCart());
+                    navigate('/order-placement');
+                  }}
                   disabled={loading || allItems.length === 0}
                   className="w-full bg-green-600 text-white py-3 px-4 rounded-lg font-semibold hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
                 >
-                  <span>Proceed</span>
+                  <span>Place Order</span>
                   <svg className="w-4 h-4 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
                   </svg>

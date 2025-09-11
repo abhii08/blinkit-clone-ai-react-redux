@@ -6,52 +6,52 @@ export const useAppDispatch = () => useDispatch();
 export const useAppSelector = useSelector;
 
 // Custom hooks for common Redux patterns
+
+// Auth hooks
 export const useAuth = () => {
-  const dispatch = useAppDispatch();
-  const auth = useAppSelector((state) => state.auth);
-  
-  return useMemo(() => ({
-    ...auth,
-    dispatch,
-  }), [auth, dispatch]);
+  const auth = useSelector(state => state.auth);
+  const dispatch = useDispatch();
+  return { ...auth, dispatch };
 };
 
+// Cart hooks
 export const useCart = () => {
-  const dispatch = useAppDispatch();
-  const cart = useAppSelector((state) => state.cart);
-  
-  return useMemo(() => ({
-    ...cart,
-    dispatch,
-  }), [cart, dispatch]);
+  const cart = useSelector(state => state.cart);
+  const dispatch = useDispatch();
+  return { ...cart, dispatch };
 };
 
+// Location hooks
 export const useLocation = () => {
-  const dispatch = useAppDispatch();
-  const location = useAppSelector((state) => state.location);
-  
-  return useMemo(() => ({
-    ...location,
-    dispatch,
-  }), [location, dispatch]);
+  const location = useSelector(state => state.location);
+  const dispatch = useDispatch();
+  return { ...location, dispatch };
 };
 
+// Products hooks
 export const useProducts = () => {
-  const dispatch = useAppDispatch();
-  const products = useAppSelector((state) => state.products);
-  
-  return useMemo(() => ({
-    ...products,
-    dispatch,
-  }), [products, dispatch]);
+  const products = useSelector(state => state.products);
+  const dispatch = useDispatch();
+  return { ...products, dispatch };
 };
 
+// UI hooks
 export const useUI = () => {
-  const dispatch = useAppDispatch();
-  const ui = useAppSelector((state) => state.ui);
-  
-  return useMemo(() => ({
-    ...ui,
-    dispatch,
-  }), [ui, dispatch]);
+  const ui = useSelector(state => state.ui);
+  const dispatch = useDispatch();
+  return { ...ui, dispatch };
+};
+
+// Order hooks
+export const useOrder = () => {
+  const order = useSelector(state => state.order);
+  const dispatch = useDispatch();
+  return { ...order, dispatch };
+};
+
+// Delivery hooks
+export const useDelivery = () => {
+  const delivery = useSelector(state => state.delivery);
+  const dispatch = useDispatch();
+  return { ...delivery, dispatch };
 };

@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 80">
+  <!-- Yellow background for "धिप्रम" -->
+  <rect x="0" y="0" width="120" height="50" fill="#FFD700" rx="5"/>
+  
+  <!-- Green background for "SWIFT - IMMEDIATE" -->
+  <rect x="0" y="50" width="200" height="30" fill="#4CAF50" rx="5"/>
+  
+  <!-- Hindi text "धिप्रम" -->
+  <text x="60" y="35" font-family="Arial, sans-serif" font-size="24" font-weight="bold" text-anchor="middle" fill="#333">धिप्रम</text>
+  
+  <!-- English text "SWIFT - IMMEDIATE" -->
+  <text x="100" y="68" font-family="Arial, sans-serif" font-size="12" font-weight="600" text-anchor="middle" fill="white">SWIFT - IMMEDIATE</text>
+</svg>

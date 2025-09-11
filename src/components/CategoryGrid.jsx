@@ -16,12 +16,18 @@ const CategoryGrid = () => {
 
   useEffect(() => {
     dispatch(fetchCategories());
-    // Fetch some products for each category to display
-    const mainCategories = ['dairy-bread-eggs', 'sweet-tooth', 'snacks-munchies', 'cold-drinks-juices'];
-    mainCategories.forEach(categorySlug => {
-      dispatch(fetchProductsByCategory({ categorySlug, limit: 4 }));
-    });
   }, [dispatch]);
+
+  // Fetch products for categories once categories are loaded
+  useEffect(() => {
+    if (categories.length > 0) {
+      // Fetch products for all active categories, limiting to first 6 for homepage display
+      const categoriesToShow = categories.slice(0, 6);
+      categoriesToShow.forEach(category => {
+        dispatch(fetchProductsByCategory({ categorySlug: category.slug, limit: 4 }));
+      });
+    }
+  }, [categories, dispatch]);
 
   const handleCategoryClick = (category) => {
     navigate(`/category/${category.slug}`);
@@ -127,17 +133,15 @@ const CategoryGrid = () => {
 
       {/* Featured Products Section */}
       <div className="space-y-8">
-        {Object.entries(productsByCategory).map(([categorySlug, products]) => {
-          if (!products || products.length === 0) return null;
-          
-          const categoryName = categories.find(cat => cat.slug === categorySlug)?.name || categorySlug;
+        {categories.slice(0, 6).map((category) => {
+          const products = productsByCategory[category.slug] || [];
           
           return (
-            <div key={categorySlug} className="bg-white">
+            <div key={category.slug} className="bg-white">
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-xl font-semibold text-gray-900">{categoryName}</h2>
+                <h2 className="text-xl font-semibold text-gray-900">{category.name}</h2>
                 <button
-                  onClick={() => navigate(`/category/${categorySlug}`)}
+                  onClick={() => navigate(`/category/${category.slug}`)}
                   className="text-green-600 hover:text-green-700 font-medium text-sm"
                 >
                   See all
@@ -145,7 +149,12 @@ const CategoryGrid = () => {
               </div>
               
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                {products.map((product) => {
+                {products.length === 0 ? (
+                  <div className="col-span-full text-center py-8 text-gray-500">
+                    <p>Loading products...</p>
+                  </div>
+                ) : (
+                  products.map((product) => {
                   const quantity = getProductQuantity(product.id);
                   
                   return (
@@ -203,7 +212,8 @@ const CategoryGrid = () => {
                       </div>
                     </div>
                   );
-                })}
+                })
+                )}
               </div>
             </div>
           );

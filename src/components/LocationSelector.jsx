@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { useLocation, useAuth } from '../../redux/hooks';
-import { fetchUserAddresses, addNewAddress, setCurrentLocation, setSelectedAddress, selectLocationFromMap, closeLocationSelector } from '../../redux/slices/locationSlice';
+import { useLocation, useAuth, useUI } from '../../redux/hooks';
+import { fetchUserAddresses, addNewAddress, setCurrentLocation, setSelectedAddress, selectLocationFromMap } from '../../redux/slices/locationSlice';
+import { closeLocationSelector } from '../../redux/slices/uiSlice';
 import { db } from '../lib/supabase';
 import GoogleMapPicker from './GoogleMapPicker';
 
@@ -9,14 +10,12 @@ const LocationSelector = ({ isOpen }) => {
   const [showMapPicker, setShowMapPicker] = useState(false);
   const [newAddress, setNewAddress] = useState({
     type: 'home',
-    full_name: '',
-    phone: '',
     address_line_1: '',
     address_line_2: '',
-    landmark: '',
     city: '',
     state: '',
-    pincode: ''
+    postal_code: '',
+    country: 'India'
   });
 
   const { user } = useAuth();
@@ -24,18 +23,19 @@ const LocationSelector = ({ isOpen }) => {
     addresses,
     currentLocation,
     loading,
-    dispatch
+    dispatch: locationDispatch
   } = useLocation();
+  const { dispatch: uiDispatch } = useUI();
   
   const handleClose = () => {
-    dispatch(closeLocationSelector());
+    uiDispatch(closeLocationSelector());
   };
 
   useEffect(() => {
     if (user && isOpen) {
-      dispatch(fetchUserAddresses(user.id));
+      locationDispatch(fetchUserAddresses(user.id));
     }
-  }, [user, isOpen, dispatch]);
+  }, [user, isOpen, locationDispatch]);
 
   const handleCurrentLocation = async () => {
     try {
@@ -45,12 +45,12 @@ const LocationSelector = ({ isOpen }) => {
             const { latitude, longitude } = position.coords;
             
             // Set current location in Redux
-            dispatch(setCurrentLocation({ latitude, longitude }));
+            locationDispatch(setCurrentLocation({ latitude, longitude }));
             
             // Set as selected address
-            dispatch(setSelectedAddress({
+            locationDispatch(setSelectedAddress({
               type: 'current',
-              formatted_address: `Current Location (${latitude.toFixed(6)}, ${longitude.toFixed(6)})`,
+              address: 'Current Location',
               latitude,
               longitude
             }));
@@ -71,12 +71,12 @@ const LocationSelector = ({ isOpen }) => {
   };
 
   const handleAddressSelect = (address) => {
-    dispatch(setSelectedAddress(address));
+    locationDispatch(setSelectedAddress(address));
     handleClose();
   };
 
   const handleMapLocationSelect = (mapData) => {
-    dispatch(selectLocationFromMap(mapData));
+    locationDispatch(selectLocationFromMap(mapData));
     setShowMapPicker(false);
     handleClose();
   };
@@ -92,18 +92,16 @@ const LocationSelector = ({ isOpen }) => {
         longitude: 0
       };
       
-      await dispatch(addNewAddress(addressData)).unwrap();
+      await locationDispatch(addNewAddress(addressData)).unwrap();
       setShowAddForm(false);
       setNewAddress({
         type: 'home',
-        full_name: '',
-        phone: '',
         address_line_1: '',
         address_line_2: '',
-        landmark: '',
         city: '',
         state: '',
-        pincode: ''
+        postal_code: '',
+        country: 'India'
       });
     } catch (error) {
       console.error('Error adding address:', error);
@@ -121,7 +119,7 @@ const LocationSelector = ({ isOpen }) => {
             <h2 className="text-xl font-bold text-gray-900">Select Delivery Location</h2>
             <button
               onClick={handleClose}
-              className="text-gray-400 hover:text-gray-600 transition-colors"
+              className="text-gray-400 hover:text-gray-600 transition-colors p-2 rounded-lg hover:bg-gray-100"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -225,10 +223,10 @@ const LocationSelector = ({ isOpen }) => {
                 <button
                   type="button"
                   onClick={() => setShowMapPicker(false)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-gray-400 hover:text-gray-600 p-1"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
@@ -239,11 +237,11 @@ const LocationSelector = ({ isOpen }) => {
                   lng: currentLocation.longitude
                 } : null}
                 onLocationSelect={handleMapLocationSelect}
-                height="400px"
+                height="350px"
                 zoom={15}
               />
               
-              <div className="mt-4 text-center">
+              <div className="mt-4 flex gap-3 justify-center">
                 <button
                   onClick={() => setShowMapPicker(false)}
                   className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
@@ -260,10 +258,10 @@ const LocationSelector = ({ isOpen }) => {
                 <button
                   type="button"
                   onClick={() => setShowAddForm(false)}
-                  className="text-gray-400 hover:text-gray-600"
+                  className="text-gray-400 hover:text-gray-600 p-1"
                 >
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                   </svg>
                 </button>
               </div>
@@ -281,28 +279,6 @@ const LocationSelector = ({ isOpen }) => {
                 </select>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Full Name</label>
-                  <input
-                    type="text"
-                    required
-                    value={newAddress.full_name}
-                    onChange={(e) => setNewAddress({ ...newAddress, full_name: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                  <input
-                    type="tel"
-                    required
-                    value={newAddress.phone}
-                    onChange={(e) => setNewAddress({ ...newAddress, phone: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                  />
-                </div>
-              </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-1">Address Line 1</label>
@@ -327,16 +303,6 @@ const LocationSelector = ({ isOpen }) => {
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Landmark (Optional)</label>
-                <input
-                  type="text"
-                  value={newAddress.landmark}
-                  onChange={(e) => setNewAddress({ ...newAddress, landmark: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                  placeholder="Near famous place"
-                />
-              </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -362,15 +328,15 @@ const LocationSelector = ({ isOpen }) => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Pincode</label>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Postal Code</label>
                 <input
                   type="text"
                   required
                   pattern="[0-9]{6}"
-                  value={newAddress.pincode}
-                  onChange={(e) => setNewAddress({ ...newAddress, pincode: e.target.value })}
+                  value={newAddress.postal_code}
+                  onChange={(e) => setNewAddress({ ...newAddress, postal_code: e.target.value })}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-green-500"
-                  placeholder="6-digit pincode"
+                  placeholder="6-digit postal code"
                 />
               </div>
 

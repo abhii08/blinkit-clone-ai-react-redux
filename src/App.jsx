@@ -1,63 +1,36 @@
-import { useEffect } from 'react';
 import { Provider } from 'react-redux';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { store } from '../redux/store';
-import { useUI } from '../redux/hooks';
-import { openAuthModal, openLocationSelector } from '../redux/slices/uiSlice';
-import { toggleCart } from '../redux/slices/cartSlice';
 import { useAuthSession } from './hooks/useAuthSession';
-import Navbar from './components/Navbar';
+import Layout from './components/Layout';
+import RoleSelection from './components/RoleSelection';
 import HomePage from './components/HomePage';
 import CategoryPage from './components/CategoryPage';
-import AuthModal from './components/AuthModal';
-import CartSidebar from './components/CartSidebar';
-import LocationSelector from './components/LocationSelector';
+import OrderPlacement from './components/OrderPlacement';
+import OrderConfirmation from './components/OrderConfirmation';
+import OrderTracking from './components/OrderTracking';
+import OrdersList from './components/OrdersList';
+import DeliveryAgentDashboard from './components/DeliveryAgentDashboard';
 import './App.css';
 
 
 function AppContent() {
-  const { modals, dispatch } = useUI();
-  
   // Initialize auth session management
   useAuthSession();
 
-  const handleLogin = () => {
-    dispatch(openAuthModal('login'));
-  };
-
-  const handleCartClick = () => {
-    dispatch(toggleCart());
-  };
-
-  const handleLocationClick = () => {
-    dispatch(openLocationSelector());
-  };
-
   return (
-    <div className="min-h-screen bg-white">
-      <Navbar 
-        onLoginClick={handleLogin}
-        onCartClick={handleCartClick}
-        onLocationClick={handleLocationClick}
-      />
-      
+    <Layout>
       <Routes>
-        <Route path="/" element={<HomePage />} />
+        <Route path="/" element={<RoleSelection />} />
+        <Route path="/home" element={<HomePage />} />
         <Route path="/category/:categorySlug" element={<CategoryPage />} />
+        <Route path="/order-placement" element={<OrderPlacement />} />
+        <Route path="/order-confirmation/:orderId" element={<OrderConfirmation />} />
+        <Route path="/track-order/:orderId" element={<OrderTracking />} />
+        <Route path="/orders" element={<OrdersList />} />
+        <Route path="/delivery-dashboard" element={<DeliveryAgentDashboard />} />
       </Routes>
-
-      {/* Modals */}
-      <AuthModal
-        isOpen={modals.auth.isOpen}
-        initialMode={modals.auth.mode}
-      />
-      
-      <CartSidebar />
-      
-      <LocationSelector
-        isOpen={modals.locationSelector.isOpen}
-      />
-    </div>
+    </Layout>
   );
 }
 

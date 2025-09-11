@@ -1,5 +1,6 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { db } from '../../src/lib/supabase';
+import { signOutUser } from './authSlice';
 
 // Async thunks for cart operations
 export const fetchCartItems = createAsyncThunk(
@@ -270,6 +271,18 @@ const cartSlice = createSlice({
       .addCase(clearCart.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
+      })
+      // Clear cart on user logout
+      .addCase(signOutUser.fulfilled, (state) => {
+        state.items = [];
+        state.localItems = [];
+        state.totalItems = 0;
+        state.totalAmount = 0;
+        state.isOpen = false;
+        state.loading = false;
+        state.error = null;
+        // Clear localStorage as well
+        localStorage.removeItem('blinkit_local_cart');
       });
   },
 });
