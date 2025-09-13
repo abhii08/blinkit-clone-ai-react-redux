@@ -1,10 +1,12 @@
 import { useState, useEffect, useRef } from 'react';
-import { useAuth } from '../../redux/hooks';
-import { signOutUser } from '../../redux/slices/authSlice';
+import { useNavigate } from 'react-router-dom';
+import { useLogout } from '../hooks/useLogout';
+import { getUserDisplayName } from '../utils/authHelpers';
 
 const ProfileDropdown = ({ isOpen, onClose, user, triggerRef }) => {
   const dropdownRef = useRef(null);
-  const { dispatch } = useAuth();
+  const navigate = useNavigate();
+  const { logout } = useLogout();
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -30,10 +32,17 @@ const ProfileDropdown = ({ isOpen, onClose, user, triggerRef }) => {
 
   const handleLogout = async () => {
     try {
-      await dispatch(signOutUser()).unwrap();
       onClose();
+      const result = await logout();
+      
+      if (!result.success) {
+        console.error('Logout failed:', result.error);
+        // Still navigate even if logout had issues
+        navigate('/', { replace: true });
+      }
     } catch (error) {
-      console.error('Error signing out:', error);
+      console.error('Error during logout:', error);
+      navigate('/', { replace: true });
     }
   };
 
@@ -52,7 +61,7 @@ const ProfileDropdown = ({ isOpen, onClose, user, triggerRef }) => {
       <div className="px-4 py-3 border-b border-gray-100">
         <h3 className="text-lg font-semibold text-gray-900">My Account</h3>
         <p className="text-sm text-gray-600">
-          {user?.phone || user?.user_metadata?.phone || '9664309440'}
+          {user?.user_metadata?.phone || user?.phone || getUserDisplayName(user)}
         </p>
       </div>
 
@@ -62,7 +71,7 @@ const ProfileDropdown = ({ isOpen, onClose, user, triggerRef }) => {
           icon={<UserIcon />}
           text="My Orders"
           onClick={() => {
-            console.log('Navigate to My Orders');
+            navigate('/orders');
             onClose();
           }}
         />

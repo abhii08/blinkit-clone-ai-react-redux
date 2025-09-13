@@ -9,6 +9,7 @@ export const createOrder = createAsyncThunk(
       const order = await db.createOrder(orderData);
       return order;
     } catch (error) {
+      console.error('Order creation error:', error);
       return rejectWithValue(error.message);
     }
   }
@@ -21,6 +22,7 @@ export const fetchUserOrders = createAsyncThunk(
       const orders = await db.getUserOrders(userId);
       return orders;
     } catch (error) {
+      console.error('Fetch user orders error:', error);
       return rejectWithValue(error.message);
     }
   }
@@ -33,6 +35,7 @@ export const fetchOrderById = createAsyncThunk(
       const order = await db.getOrderById(orderId);
       return order;
     } catch (error) {
+      console.error('Fetch order by ID error:', error);
       return rejectWithValue(error.message);
     }
   }
@@ -45,6 +48,7 @@ export const updateOrderStatus = createAsyncThunk(
       const updatedOrder = await db.updateOrderStatus(orderId, status, agentId);
       return updatedOrder;
     } catch (error) {
+      console.error('Update order status error:', error);
       return rejectWithValue(error.message);
     }
   }
@@ -57,6 +61,7 @@ export const assignDeliveryAgent = createAsyncThunk(
       const updatedOrder = await db.assignDeliveryAgent(orderId, agentId);
       return updatedOrder;
     } catch (error) {
+      console.error('Assign delivery agent error:', error);
       return rejectWithValue(error.message);
     }
   }

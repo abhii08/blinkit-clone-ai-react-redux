@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FaUser, FaTruck, FaShoppingCart } from 'react-icons/fa';
+import { setRoleContext, ROLES } from '../utils/roleContext';
 import dhipramLogo from '../assets/dhipram-logo.svg';
 
 const RoleSelection = () => {
@@ -10,10 +11,12 @@ const RoleSelection = () => {
   const handleRoleSelect = (role) => {
     setSelectedRole(role);
     
-    // Navigate based on role selection
+    // Set role context for this tab/session
     if (role === 'user') {
+      setRoleContext(ROLES.USER);
       navigate('/home');
     } else if (role === 'delivery-agent') {
+      setRoleContext(ROLES.DELIVERY_AGENT);
       navigate('/delivery-dashboard');
     }
   };

@@ -77,11 +77,18 @@ const OrderPlacement = () => {
       console.log('Cart items for order:', allItems);
       
       const orderItems = allItems.map(item => {
-        const price = item.product?.price || item.unitPrice || item.price || 0;
+        // Handle both server cart items (with products relation) and local cart items
+        const product = item.products || item.product || item;
+        const price = product.price || item.price || item.unitPrice || 0;
+        const productName = product.name || item.name || 'Product Name';
+        const productUnit = product.unit || item.unit || item.quantity || '500ml';
+        
         console.log('Processing item:', {
           id: item.product_id || item.id,
           quantity: item.quantity,
           price: price,
+          name: productName,
+          unit: productUnit,
           item: item
         });
         
@@ -89,7 +96,10 @@ const OrderPlacement = () => {
           product_id: item.product_id || item.id,
           quantity: item.quantity,
           unit_price: price,
-          total_price: price * item.quantity
+          total: price * item.quantity, // Required by database schema
+          total_price: price * item.quantity, // For compatibility
+          product_name: productName,
+          product_unit: productUnit
         };
       });
 

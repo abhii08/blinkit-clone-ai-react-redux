@@ -29,7 +29,7 @@ export const db = {
       if (error) throw error
       return data
     } catch (error) {
-      console.error('Error fetching categories:', error)
+      // Error fetching categories
       throw error
     }
   },
@@ -55,7 +55,7 @@ export const db = {
       if (error) throw error
       return data
     } catch (error) {
-      console.error('Error fetching products:', error)
+      // Error fetching products
       throw error
     }
   },
@@ -75,7 +75,7 @@ export const db = {
       if (error) throw error
       return data
     } catch (error) {
-      console.error('Error searching products:', error)
+      // Error searching products
       throw error
     }
   },
@@ -107,7 +107,7 @@ export const db = {
         time: `${product.delivery_time} MINS`
       })) || []
     } catch (error) {
-      console.error('Error fetching products by category:', error)
+      // Error fetching products by category
       throw error
     }
   },
@@ -135,7 +135,7 @@ export const db = {
       if (error) throw error
       return data || []
     } catch (error) {
-      console.error('Error fetching all products by category:', error)
+      // Error fetching all products by category
       throw error
     }
   },
@@ -152,7 +152,7 @@ export const db = {
       if (error) throw error
       return data || []
     } catch (error) {
-      console.error('Error fetching nearby stores:', error)
+      // Error fetching nearby stores
       throw error
     }
   },
@@ -177,7 +177,7 @@ export const db = {
       if (error) throw error
       return data
     } catch (error) {
-      console.error('Error fetching cart items:', error)
+      // Error fetching cart items
       throw error
     }
   },
@@ -201,7 +201,7 @@ export const db = {
       const { data, error } = await query
       
       if (error) {
-        console.log(`Inventory query failed for product ${productId}:`, error.message)
+        // Inventory query failed - using fallback
         // If no inventory record found, assume unlimited stock
         return { available: 999, total: 999 }
       }
@@ -225,7 +225,7 @@ export const db = {
         }
       }
     } catch (directErr) {
-      console.log(`Direct inventory query failed for product ${productId}:`, directErr.message)
+      // Direct inventory query failed - using fallback
       // Ultimate fallback - assume unlimited stock
       return { available: 999, total: 999 }
     }
@@ -246,7 +246,7 @@ export const db = {
       if (error) throw error
       return data
     } catch (error) {
-      console.error('Error adding to cart:', error)
+      // Error adding to cart
       throw error
     }
   },
@@ -270,7 +270,7 @@ export const db = {
       if (error) throw error
       return data
     } catch (error) {
-      console.error('Error updating cart item:', error)
+      // Error updating cart item
       throw error
     }
   },
@@ -286,7 +286,7 @@ export const db = {
       if (error) throw error
       return data
     } catch (error) {
-      console.error('Error removing from cart:', error)
+      // Error removing from cart
       throw error
     }
   },
@@ -301,12 +301,93 @@ export const db = {
       if (error) throw error
       return data
     } catch (error) {
-      console.error('Error clearing cart:', error)
+      // Error clearing cart
       throw error
     }
   },
 
-  // User addresses
+  // Notifications
+  getUserNotifications: async (userId, limit = 50) => {
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(limit)
+      
+      if (error) throw error
+      return data
+    } catch (error) {
+      // Error fetching notifications
+      throw error
+    }
+  },
+
+  markNotificationAsRead: async (notificationId) => {
+    try {
+      const { data, error } = await supabase
+        .from('notifications')
+        .update({ is_read: true })
+        .eq('id', notificationId)
+        .select('*')
+        .single()
+      
+      if (error) throw error
+      return data
+    } catch (error) {
+      // Error marking notification as read
+      throw error
+    }
+  },
+
+  getUserOrders: async (userId, limit = 20) => {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items (
+            *,
+            products (*)
+          )
+        `)
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(limit)
+      
+      if (error) throw error
+      return data
+    } catch (error) {
+      // Error fetching user orders
+      throw error
+    }
+  },
+
+  getOrderById: async (orderId) => {
+    try {
+      const { data, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items (
+            *,
+            products (*)
+          ),
+          stores (*),
+          delivery_agents (*)
+        `)
+        .eq('id', orderId)
+        .single()
+      
+      if (error) throw error
+      return data
+    } catch (error) {
+      // Error fetching order
+      throw error
+    }
+  },
+
   getUserAddresses: async (userId) => {
     try {
       const { data, error } = await supabase
@@ -318,7 +399,7 @@ export const db = {
       if (error) throw error
       return data
     } catch (error) {
-      console.error('Error fetching user addresses:', error)
+      // Error fetching user addresses
       throw error
     }
   },
@@ -333,7 +414,7 @@ export const db = {
       if (error) throw error
       return data[0]
     } catch (error) {
-      console.error('Error adding address:', error)
+      // Error adding address
       throw error
     }
   },
@@ -349,7 +430,7 @@ export const db = {
       if (error) throw error
       return data[0]
     } catch (error) {
-      console.error('Error updating address:', error)
+      // Error updating address
       throw error
     }
   },
@@ -364,109 +445,12 @@ export const db = {
       if (error) throw error
       return data
     } catch (error) {
-      console.error('Error deleting address:', error)
+      // Error deleting address
       throw error
     }
   },
 
   // Orders
-  createOrder: async (orderData) => {
-    try {
-      const { data, error } = await supabase
-        .from('orders')
-        .insert(orderData)
-        .select()
-
-      if (error) throw error
-      return data[0]
-    } catch (error) {
-      console.error('Error creating order:', error)
-      throw error
-    }
-  },
-
-  getUserOrders: async (userId, limit = 20) => {
-    try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select(`
-          *,
-          order_items (
-            *,
-            products (name, image_url)
-          ),
-          addresses (*)
-        `)
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(limit)
-
-      if (error) throw error
-      return data
-    } catch (error) {
-      console.error('Error fetching user orders:', error)
-      throw error
-    }
-  },
-
-  getOrderById: async (orderId) => {
-    try {
-      const { data, error } = await supabase
-        .from('orders')
-        .select(`
-          *,
-          order_items (
-            *,
-            products (*)
-          ),
-          addresses (*),
-          stores (*)
-        `)
-        .eq('id', orderId)
-        .single()
-
-      if (error) throw error
-      return data
-    } catch (error) {
-      console.error('Error fetching order by ID:', error)
-      throw error
-    }
-  },
-
-  // Notifications
-  getUserNotifications: async (userId, limit = 50) => {
-    try {
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(limit)
-
-      if (error) throw error
-      return data
-    } catch (error) {
-      console.error('Error fetching user notifications:', error)
-      throw error
-    }
-  },
-
-  markNotificationAsRead: async (notificationId) => {
-    try {
-      const { data, error } = await supabase
-        .from('notifications')
-        .update({ is_read: true })
-        .eq('id', notificationId)
-
-      if (error) throw error
-      return data
-    } catch (error) {
-      console.error('Error marking notification as read:', error)
-      throw error
-    }
-  },
-
-  // Enhanced Order Management
   createOrder: async (orderData) => {
     try {
       // Separate order items from order data
@@ -508,8 +492,7 @@ export const db = {
           order_items (
             *,
             products (*)
-          ),
-          addresses (*)
+          )
         `)
         .eq('id', order.id)
         .single();
@@ -517,7 +500,7 @@ export const db = {
       if (fetchError) throw fetchError;
       return fullOrder;
     } catch (error) {
-      console.error('Error creating order:', error)
+      // Error creating order
       throw error
     }
   },
@@ -543,7 +526,6 @@ export const db = {
             *,
             products (*)
           ),
-          addresses (*),
           delivery_agents (*)
         `)
         .single()
@@ -551,13 +533,29 @@ export const db = {
       if (error) throw error
       return data
     } catch (error) {
-      console.error('Error updating order status:', error)
+      // Error updating order status
       throw error
     }
   },
 
   assignDeliveryAgent: async (orderId, agentId) => {
     try {
+      // First check if the order exists
+      const { data: existingOrder, error: checkError } = await supabase
+        .from('orders')
+        .select('id, status')
+        .eq('id', orderId)
+        .single()
+
+      if (checkError || !existingOrder) {
+        throw new Error(`Order with ID ${orderId} not found in database`)
+      }
+
+      // Check if order is in a valid state for assignment
+      if (existingOrder.status === 'delivered' || existingOrder.status === 'cancelled') {
+        throw new Error(`Cannot assign agent to order with status: ${existingOrder.status}`)
+      }
+
       const { data, error } = await supabase
         .from('orders')
         .update({
@@ -572,7 +570,6 @@ export const db = {
             *,
             products (*)
           ),
-          addresses (*),
           delivery_agents (*)
         `)
         .single()
@@ -580,7 +577,7 @@ export const db = {
       if (error) throw error
       return data
     } catch (error) {
-      console.error('Error assigning delivery agent:', error)
+      // Error assigning delivery agent
       throw error
     }
   },
@@ -588,15 +585,16 @@ export const db = {
   // Delivery Agent Management
   getAvailableDeliveryAgents: async (latitude, longitude, radius = 5) => {
     try {
-      // Simple query for available agents - in production, use PostGIS for location queries
+      // Query for agents with 'online' status (matching dashboard display)
       const { data, error } = await supabase
         .from('delivery_agents')
         .select('*')
-        .eq('status', 'available')
+        .in('status', ['available', 'online'])
         .eq('is_active', true)
         .limit(10)
 
       if (error) throw error
+      console.log('Available agents found:', data?.length || 0, data)
       return data || []
     } catch (error) {
       console.error('Error fetching available delivery agents:', error)
@@ -618,7 +616,7 @@ export const db = {
       if (error) throw error
       return data
     } catch (error) {
-      console.error('Error updating agent location:', error)
+      // Error updating agent location
       throw error
     }
   },
@@ -636,7 +634,7 @@ export const db = {
       if (error) throw error
       return data
     } catch (error) {
-      console.error('Error updating agent status:', error)
+      // Error updating agent status
       throw error
     }
   },
@@ -660,7 +658,7 @@ export const db = {
       if (error) throw error
       return data || []
     } catch (error) {
-      console.error('Error fetching agent orders:', error)
+      // Error fetching agent orders
       throw error
     }
   },
@@ -682,7 +680,7 @@ export const db = {
       if (error) throw error
       return data
     } catch (error) {
-      console.error('Error starting delivery:', error)
+      // Error starting delivery
       throw error
     }
   },
@@ -704,7 +702,7 @@ export const db = {
       if (error) throw error
       return data
     } catch (error) {
-      console.error('Error completing delivery:', error)
+      // Error completing delivery
       throw error
     }
   },
@@ -771,7 +769,7 @@ export const auth = {
             })
             
             if (resendError) {
-              console.error('Error resending confirmation:', resendError)
+              // Error resending confirmation
               throw new Error('Failed to resend confirmation email. Please try again.')
             }
             
@@ -792,7 +790,7 @@ export const auth = {
       
       return data
     } catch (error) {
-      console.error('Error signing up:', error)
+      // Error signing up
       throw error
     }
   },
@@ -822,7 +820,7 @@ export const auth = {
               }
             })
             
-            if (resendError) console.error('Error resending confirmation:', resendError)
+            if (resendError) {/* Error resending confirmation */}
             throw new Error('Please confirm your email before signing in. A new confirmation email has been sent.')
           }
         }
@@ -836,7 +834,7 @@ export const auth = {
       
       return data
     } catch (error) {
-      console.error('Error signing in:', error)
+      // Error signing in
       throw error
     }
   },
@@ -846,7 +844,7 @@ export const auth = {
       const { error } = await supabase.auth.signOut()
       if (error) throw error
     } catch (error) {
-      console.error('Error signing out:', error)
+      // Error signing out
       throw error
     }
   },
@@ -857,7 +855,7 @@ export const auth = {
       if (error) throw error
       return user
     } catch (error) {
-      console.error('Error getting current user:', error)
+      // Error getting current user
       throw error
     }
   },
@@ -871,7 +869,7 @@ export const auth = {
       if (error) throw error
       return data
     } catch (error) {
-      console.error('Error updating profile:', error)
+      // Error updating profile
       throw error
     }
   }

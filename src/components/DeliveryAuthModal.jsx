@@ -1,8 +1,9 @@
 import { useState } from 'react';
-import { useAuth } from '../../redux/hooks';
-import { signInUser, signUpUser, clearError } from '../../redux/slices/authSlice';
-import { validation, authRateLimiter, getPasswordStrength } from '../utils/validation';
+import { useDispatch, useSelector } from 'react-redux';
+import { signInUser, clearError } from '../../redux/slices/authSlice';
 import { supabase } from '../lib/supabase';
+import { validation, authRateLimiter, getPasswordStrength } from '../utils/validation';
+import { storeTabAuthState } from '../utils/tabAuthManager';
 
 const DeliveryAuthModal = ({ isOpen, onClose, onSuccess }) => {
   const [mode, setMode] = useState('login'); // 'login' or 'signup'
@@ -20,7 +21,8 @@ const DeliveryAuthModal = ({ isOpen, onClose, onSuccess }) => {
   const [isRateLimited, setIsRateLimited] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const { loading, error, dispatch } = useAuth();
+  const dispatch = useDispatch();
+  const { loading, error } = useSelector((state) => state.auth);
 
   const validateForm = () => {
     const errors = {};
@@ -29,9 +31,12 @@ const DeliveryAuthModal = ({ isOpen, onClose, onSuccess }) => {
     const emailError = validation.email(formData.email);
     if (emailError) errors.email = emailError;
 
-    // Password validation
-    const passwordError = validation.password(formData.password);
-    if (passwordError) errors.password = passwordError;
+    // Simplified password validation for delivery agents
+    if (!formData.password) {
+      errors.password = 'Password is required';
+    } else if (formData.password.length < 6) {
+      errors.password = 'Password must be at least 6 characters long';
+    }
 
     if (mode === 'signup') {
       // Full name validation
@@ -115,19 +120,17 @@ const DeliveryAuthModal = ({ isOpen, onClose, onSuccess }) => {
 
     try {
       if (mode === 'login') {
-        // Sign in with Supabase directly first
-        const { data: { user, session }, error: signInError } = await supabase.auth.signInWithPassword({
-          email: formData.email,
-          password: formData.password,
-        });
+        // Handle login
+        const signInResult = await dispatch(signInUser({ 
+          email: formData.email, 
+          password: formData.password 
+        }));
 
-        if (signInError) {
-          throw signInError;
+        if (signInResult.error) {
+          throw new Error(signInResult.error.message || 'Login failed');
         }
 
-        if (!user) {
-          throw new Error('No user returned from authentication');
-        }
+        const { user, session } = signInResult.payload;
 
         // Check if user is a delivery agent
         const { data: agentData, error: agentError } = await supabase
@@ -137,17 +140,17 @@ const DeliveryAuthModal = ({ isOpen, onClose, onSuccess }) => {
           .single();
 
         if (agentError || !agentData) {
-          // Sign out if not a delivery agent
-          await supabase.auth.signOut();
-          throw new Error('No delivery agent found with these credentials');
+          // Don't sign out - just show error message
+          // The user might be valid but not a delivery agent
+          throw new Error('No delivery agent profile found. Please sign up as a delivery agent first.');
         }
 
-        // Dispatch the login success action
-        dispatch({
-          type: 'auth/signInUser/fulfilled',
-          payload: { user, session }
+        // Store the user in tab auth state for delivery agent role
+        storeTabAuthState({
+          user,
+          isAuthenticated: true
         });
-
+        
         onSuccess(user, agentData);
       } else {
         // Handle signup
@@ -163,8 +166,20 @@ const DeliveryAuthModal = ({ isOpen, onClose, onSuccess }) => {
           }
         });
 
-        if (signUpError) throw signUpError;
+        if (signUpError) {
+          // Handle specific signup errors
+          if (signUpError.message.includes('already registered')) {
+            throw new Error('An account with this email already exists. Please try logging in instead.');
+          }
+          throw signUpError;
+        }
+        
         if (!signUpData.user) throw new Error('Failed to create user');
+
+        // Check if email confirmation is required
+        if (!signUpData.session) {
+          // Email confirmation required - but still create the agent profile
+        }
 
         // Create delivery agent profile
         const { data: agentData, error: agentError } = await supabase
@@ -176,23 +191,55 @@ const DeliveryAuthModal = ({ isOpen, onClose, onSuccess }) => {
             email: formData.email,
             vehicle_type: formData.vehicleType,
             vehicle_number: formData.vehicleNumber,
-            status: 'offline'
+            status: 'offline',
+            is_active: true,
+            is_verified: false
           })
           .select()
           .single();
 
-        if (agentError) throw agentError;
+        // Agent creation result processed
 
-        // Dispatch the signup success action
-        dispatch({
-          type: 'auth/signUpUser/fulfilled',
-          payload: { user: signUpData.user, session: signUpData.session }
-        });
+        if (agentError) {
+          // Database error creating agent profile
+          // Handle database constraint errors
+          if (agentError.code === '23505') {
+            throw new Error('A delivery agent profile already exists for this account.');
+          }
+          throw new Error(`Failed to create delivery agent profile: ${agentError.message}`);
+        }
 
-        onSuccess(signUpData.user, agentData);
+        if (!agentData) {
+          throw new Error('Agent profile was not created successfully');
+        }
+
+        // Successfully created agent profile
+        
+        // Handle different scenarios based on email confirmation
+        if (!signUpData.session) {
+          // Email confirmation required - show success message but don't call onSuccess yet
+          dispatch({
+            type: 'auth/setError',
+            payload: 'Account created successfully! Please check your email to confirm your account, then log in.'
+          });
+          // Reset form and close modal
+          resetForm();
+          setTimeout(() => {
+            onClose();
+          }, 3000);
+        } else {
+          // No email confirmation needed - proceed normally
+          // Store the user in tab auth state for delivery agent role
+          storeTabAuthState({
+            user: signUpData.user,
+            isAuthenticated: true
+          });
+          
+          onSuccess(signUpData.user, agentData);
+        }
       }
     } catch (error) {
-      console.error('Authentication error:', error);
+      // Authentication error
       // Set error in Redux state
       dispatch({
         type: 'auth/setError',

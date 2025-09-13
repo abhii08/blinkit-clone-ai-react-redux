@@ -9,6 +9,7 @@ export const fetchUserAddresses = createAsyncThunk(
       const addresses = await db.getUserAddresses(userId);
       return addresses;
     } catch (error) {
+      console.error('Fetch user addresses error:', error);
       return rejectWithValue(error.message);
     }
   }
@@ -21,6 +22,7 @@ export const addNewAddress = createAsyncThunk(
       const newAddress = await db.addAddress(addressData);
       return newAddress;
     } catch (error) {
+      console.error('Add new address error:', error);
       return rejectWithValue(error.message);
     }
   }
@@ -33,6 +35,7 @@ export const updateAddress = createAsyncThunk(
       const updatedAddress = await db.updateAddress(addressId, addressData);
       return updatedAddress;
     } catch (error) {
+      console.error('Update address error:', error);
       return rejectWithValue(error.message);
     }
   }
@@ -45,6 +48,7 @@ export const deleteAddress = createAsyncThunk(
       await db.deleteAddress(addressId);
       return addressId;
     } catch (error) {
+      console.error('Delete address error:', error);
       return rejectWithValue(error.message);
     }
   }
@@ -57,6 +61,7 @@ export const fetchNearbyStores = createAsyncThunk(
       const stores = await db.getNearbyStores(latitude, longitude, radiusKm);
       return stores;
     } catch (error) {
+      console.error('Fetch nearby stores error:', error);
       return rejectWithValue(error.message);
     }
   }

@@ -97,6 +97,13 @@ export class RateLimiter {
   reset(identifier) {
     this.attempts.delete(identifier);
   }
+
+  recordAttempt(identifier) {
+    const now = Date.now();
+    const userAttempts = this.attempts.get(identifier) || [];
+    userAttempts.push(now);
+    this.attempts.set(identifier, userAttempts);
+  }
 }
 
 // Create global rate limiter instance

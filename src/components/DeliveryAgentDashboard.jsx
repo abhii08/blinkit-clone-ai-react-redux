@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useAuth, useDelivery, useOrder } from '../../redux/hooks';
+import { useDelivery, useOrder } from '../../redux/hooks';
 import { 
   fetchAgentOrders, 
   updateAgentLocation, 
@@ -9,13 +9,17 @@ import {
   completeDelivery 
 } from '../../redux/slices/deliverySlice';
 import { updateOrderStatus } from '../../redux/slices/orderSlice';
+import { canAccessDeliveryFeatures, getRoleContext, ROLES } from '../utils/roleContext';
+import { useRoleBasedAuth } from '../hooks/useRoleBasedAuth';
+import { useLogout } from '../hooks/useLogout';
 import GoogleMapTracker from './GoogleMapTracker';
 import DeliveryAuthModal from './DeliveryAuthModal.jsx';
+import DeliveryAgentOrderTracker from './DeliveryAgentOrderTracker.jsx';
 import { supabase } from '../lib/supabase';
 
 const DeliveryAgentDashboard = () => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user: effectiveUser, isAuthenticated: roleAuthenticated, isLoading: authLoading, clearCurrentTabAuth } = useRoleBasedAuth();
   const { 
     currentAgent, 
     agentOrders, 
@@ -30,89 +34,112 @@ const DeliveryAgentDashboard = () => {
   const [locationWatcher, setLocationWatcher] = useState(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [agentProfile, setAgentProfile] = useState(null);
+  const [availableOrders, setAvailableOrders] = useState([]);
+  const [realTimeSubscription, setRealTimeSubscription] = useState(null);
 
-  const checkAgentProfile = async () => {
-    if (!user) return;
-
-    try {
-      const { data: agentData, error } = await supabase
-        .from('delivery_agents')
-        .select('*')
-        .eq('user_id', user.id)
-        .single();
-
-      if (error || !agentData) {
-        setShowAuthModal(true);
-        return;
-      }
-
-      setAgentProfile(agentData);
-      setIsOnline(agentData.status !== 'offline');
-      
-      // Fetch agent orders
-      deliveryDispatch(fetchAgentOrders(user.id));
-    } catch (error) {
-      console.error('Error checking agent profile:', error);
-      setShowAuthModal(true);
-    }
-  };
+  // Remove the duplicate checkAgentProfile function since it's defined later
 
   useEffect(() => {
-    const checkAgentProfile = async () => {
-      if (!user) return;
+    // Don't do anything while auth is still loading
+    if (authLoading) {
+      console.log('Auth still loading, waiting...');
+      return;
+    }
 
-      try {
-        const { data: agentData, error } = await supabase
-          .from('delivery_agents')
-          .select('*')
-          .eq('user_id', user.id)
-          .single();
-
-        if (error) {
-          console.error('Error fetching agent profile:', error);
-          // Only show auth modal for specific errors, not RLS issues
-          if (error.code === 'PGRST116' || error.message.includes('No rows found')) {
-            setShowAuthModal(true);
-          } else {
-            // For other errors (like RLS), retry after a short delay
-            setTimeout(() => checkAgentProfile(), 1000);
-          }
-          return;
-        }
-
-        if (!agentData) {
-          setShowAuthModal(true);
-          return;
-        }
-
-        setAgentProfile(agentData);
-        setIsOnline(agentData.status !== 'offline');
-        setShowAuthModal(false); // Ensure modal is hidden on success
-        
-        // Fetch agent orders
-        deliveryDispatch(fetchAgentOrders(user.id));
-      } catch (error) {
-        console.error('Error checking agent profile:', error);
-        // Retry once more before showing auth modal
-        setTimeout(() => {
-          setShowAuthModal(true);
-        }, 2000);
-      }
-    };
-
-    if (!user) {
+    // Check role context first
+    const currentRole = getRoleContext();
+    console.log('DeliveryAgentDashboard - Current role:', currentRole);
+    console.log('DeliveryAgentDashboard - Effective user:', effectiveUser?.email);
+    
+    if (currentRole === ROLES.USER) {
+      // If this tab is set for user, redirect to home
+      navigate('/home');
+      return;
+    }
+    
+    // If no role context is set, redirect to role selection
+    if (!currentRole) {
+      console.log('No role context found, redirecting to role selection');
+      navigate('/');
+      return;
+    }
+    
+    // If role context is delivery agent but no effective user, show auth modal immediately
+    if (currentRole === ROLES.DELIVERY_AGENT && !effectiveUser) {
+      console.log('Delivery agent role context exists but no effective user - showing auth modal');
       setShowAuthModal(true);
       return;
     }
 
+    const checkAgentProfile = async () => {
+      if (!effectiveUser) {
+        console.log('No effective user found after auth loading completed');
+        setShowAuthModal(true);
+        return;
+      }
+
+      try {
+        console.log('Checking agent profile for user:', effectiveUser.id, effectiveUser.email);
+        
+        // Remove .single() to avoid error when no rows exist
+        const { data: agentData, error } = await supabase
+          .from('delivery_agents')
+          .select('*')
+          .eq('user_id', effectiveUser.id);
+
+        console.log('Agent profile query result:', { agentData, error });
+
+        if (error) {
+          console.error('Error fetching agent profile:', error);
+          // Show auth modal for any database errors
+          setShowAuthModal(true);
+          return;
+        }
+
+        // Check if agent profile exists (agentData will be an array)
+        if (!agentData || agentData.length === 0) {
+          console.log('No delivery agent profile found for user:', effectiveUser.email);
+          console.log('User ID:', effectiveUser.id);
+          console.log('User should sign up as delivery agent first');
+          setShowAuthModal(true);
+          return;
+        }
+
+        // Get the first (and should be only) agent profile
+        const agentProfile = agentData[0];
+        console.log('Found agent profile:', agentProfile);
+        setAgentProfile(agentProfile);
+        // Set online status based on database status
+        const isAgentOnline = agentProfile.status === 'available' || agentProfile.status === 'busy' || agentProfile.status === 'delivering';
+        setIsOnline(isAgentOnline);
+        setShowAuthModal(false);
+        
+        // Fetch agent orders
+        deliveryDispatch(fetchAgentOrders(effectiveUser.id));
+      } catch (error) {
+        console.error('Error checking agent profile:', error);
+        setShowAuthModal(true);
+      }
+   };
+
     // Check if user has delivery agent profile
     checkAgentProfile();
-  }, [user, deliveryDispatch]);
+  }, [effectiveUser, authLoading, deliveryDispatch, navigate]);
+
+  // Fetch available orders when component mounts and agent is online
+  useEffect(() => {
+    if (agentProfile?.id && isOnline) {
+      console.log('Agent is online, fetching available orders...');
+      fetchAvailableOrders();
+    }
+  }, [agentProfile?.id, isOnline]);
 
   const handleAuthSuccess = (user, agentData) => {
     setAgentProfile(agentData);
     setShowAuthModal(false);
-    setIsOnline(agentData.status !== 'offline');
+    // Set online status based on database status
+    const isAgentOnline = agentData.status === 'available' || agentData.status === 'busy' || agentData.status === 'delivering';
+    setIsOnline(isAgentOnline);
     
     // Fetch agent orders
     deliveryDispatch(fetchAgentOrders(user.id));
@@ -133,6 +160,90 @@ const DeliveryAgentDashboard = () => {
     };
   }, [isOnline, locationWatcher]);
 
+  // Periodically sync agent status with database and set up real-time order subscriptions
+  useEffect(() => {
+    if (!agentProfile?.id) return;
+
+    const syncAgentStatus = async () => {
+      try {
+        const { data: agentData, error } = await supabase
+          .from('delivery_agents')
+          .select('status')
+          .eq('id', agentProfile.id)
+          .single();
+
+        if (!error && agentData) {
+          const dbIsOnline = agentData.status === 'available' || agentData.status === 'busy' || agentData.status === 'delivering';
+          
+          // Only update if there's a mismatch
+          if (dbIsOnline !== isOnline) {
+            setIsOnline(dbIsOnline);
+            setAgentProfile(prev => ({ ...prev, status: agentData.status }));
+          }
+        }
+      } catch (error) {
+        // Silently handle errors to avoid disrupting user experience
+      }
+    };
+
+    // Set up real-time subscription for new orders
+    const setupRealTimeSubscription = () => {
+      if (realTimeSubscription) {
+        realTimeSubscription.unsubscribe();
+      }
+
+      const subscription = supabase
+        .channel('new-orders')
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'orders',
+          filter: 'status=eq.pending'
+        }, (payload) => {
+          console.log('New order received via real-time:', payload.new);
+          // Refresh available orders when a new order is created
+          if (isOnline) {
+            console.log('Agent is online, refreshing available orders due to new order...');
+            fetchAvailableOrders();
+          } else {
+            console.log('Agent is offline, not refreshing orders');
+          }
+        })
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders',
+          filter: 'status=eq.pending'
+        }, (payload) => {
+          console.log('Order updated:', payload.new);
+          // Refresh available orders when order status changes
+          if (isOnline) {
+            fetchAvailableOrders();
+          }
+        })
+        .subscribe();
+
+      setRealTimeSubscription(subscription);
+    };
+
+    // Sync immediately and then every 30 seconds
+    syncAgentStatus();
+    const interval = setInterval(syncAgentStatus, 30000);
+
+    // Set up real-time subscription and fetch orders
+    setupRealTimeSubscription();
+    if (isOnline) {
+      fetchAvailableOrders();
+    }
+
+    return () => {
+      clearInterval(interval);
+      if (realTimeSubscription) {
+        realTimeSubscription.unsubscribe();
+      }
+    };
+  }, [agentProfile?.id, isOnline]);
+
   const startLocationTracking = () => {
     if (!navigator.geolocation) {
       alert('Geolocation is not supported by this browser');
@@ -149,7 +260,7 @@ const DeliveryAgentDashboard = () => {
         };
 
         deliveryDispatch(updateAgentLocation({
-          agentId: user.id,
+          agentId: effectiveUser.id,
           location
         }));
       },
@@ -177,15 +288,137 @@ const DeliveryAgentDashboard = () => {
     const newStatus = isOnline ? 'offline' : 'available';
     
     try {
-      await deliveryDispatch(updateAgentStatus({
-        agentId: user.id,
+      // Use agentProfile.id instead of effectiveUser.id
+      const result = await deliveryDispatch(updateAgentStatus({
+        agentId: agentProfile.id,
         status: newStatus
       }));
       
-      setIsOnline(!isOnline);
+      // Only update local state if the database update was successful
+      if (result.type === 'delivery/updateAgentStatus/fulfilled') {
+        setIsOnline(!isOnline);
+        // Update the agentProfile state to reflect the new status
+        setAgentProfile(prev => ({ ...prev, status: newStatus }));
+
+        // When going online, fetch available orders
+        if (newStatus === 'available') {
+          fetchAvailableOrders();
+          startLocationTracking();
+        } else {
+          stopLocationTracking();
+        }
+      } else {
+        throw new Error('Failed to update agent status in database');
+      }
     } catch (error) {
-      console.error('Error updating status:', error);
       alert('Failed to update status');
+    }
+  };
+
+  // Fetch available orders for delivery
+  const fetchAvailableOrders = async () => {
+    try {
+      console.log('Fetching available orders...');
+      
+      // First, let's check all orders to debug
+      const { data: allOrders, error: allError } = await supabase
+        .from('orders')
+        .select('id, status, delivery_agent_id, created_at, user_id')
+        .order('created_at', { ascending: false })
+        .limit(10);
+      
+      console.log('All recent orders:', allOrders);
+      
+      // Check specifically for pending orders without agents
+      const { data: pendingOrders, error: pendingError } = await supabase
+        .from('orders')
+        .select('id, status, delivery_agent_id, created_at, user_id')
+        .eq('status', 'pending')
+        .is('delivery_agent_id', null);
+      
+      console.log('Pending orders without agents:', pendingOrders);
+      
+      // Fetch orders that are pending and ready for delivery
+      const { data: availableOrders, error } = await supabase
+        .from('orders')
+        .select(`
+          *,
+          order_items (
+            id,
+            product_id,
+            quantity,
+            unit_price,
+            total_price,
+            products (
+              name,
+              unit
+            )
+          )
+        `)
+        .eq('status', 'pending')
+        .is('delivery_agent_id', null)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.error('Error fetching available orders:', error);
+        return;
+      }
+
+      console.log('Available orders query result:', availableOrders);
+      console.log('Available orders count:', availableOrders?.length || 0);
+      
+      // Update the available orders state
+      if (availableOrders) {
+        console.log(`Found ${availableOrders.length} available orders for delivery`);
+        setAvailableOrders(availableOrders);
+      } else {
+        setAvailableOrders([]);
+      }
+      
+    } catch (error) {
+      console.error('Error in fetchAvailableOrders:', error);
+    }
+  };
+
+  const handleAcceptOrder = async (orderId) => {
+    try {
+      console.log('Accepting order:', orderId);
+      
+      // Assign the order to this delivery agent
+      const { error: assignError } = await supabase
+        .from('orders')
+        .update({ 
+          delivery_agent_id: effectiveUser.id,
+          status: 'preparing'
+        })
+        .eq('id', orderId);
+
+      if (assignError) {
+        console.error('Error assigning order:', assignError);
+        alert('Failed to accept order');
+        return;
+      }
+
+      // Update agent status to busy
+      const statusResult = await deliveryDispatch(updateAgentStatus({
+        agentId: agentProfile.id,
+        status: 'busy'
+      }));
+      
+      // Update local state if successful
+      if (statusResult.type === 'delivery/updateAgentStatus/fulfilled') {
+        setIsOnline(true); // busy means online
+        setAgentProfile(prev => ({ ...prev, status: 'busy' }));
+      }
+
+      // Refresh orders to show updated list
+      await fetchAvailableOrders();
+      deliveryDispatch(fetchAgentOrders(effectiveUser.id));
+      
+      alert('Order accepted successfully!');
+    } catch (error) {
+      console.error('Error accepting order:', error);
+      alert('Failed to accept order');
     }
   };
 
@@ -193,7 +426,7 @@ const DeliveryAgentDashboard = () => {
     try {
       await deliveryDispatch(startDelivery({
         orderId,
-        agentId: user.id
+        agentId: effectiveUser.id
       }));
       
       await orderDispatch(updateOrderStatus({
@@ -212,7 +445,7 @@ const DeliveryAgentDashboard = () => {
     try {
       await deliveryDispatch(completeDelivery({
         orderId,
-        agentId: user.id
+        agentId: effectiveUser.id
       }));
       
       await orderDispatch(updateOrderStatus({
@@ -223,10 +456,42 @@ const DeliveryAgentDashboard = () => {
       setSelectedOrder(null);
       
       // Refresh orders
-      deliveryDispatch(fetchAgentOrders(user.id));
+      deliveryDispatch(fetchAgentOrders(effectiveUser.id));
     } catch (error) {
       console.error('Error completing delivery:', error);
       alert('Failed to complete delivery');
+    }
+  };
+
+  const { logout } = useLogout();
+
+  const handleLogout = async () => {
+    try {
+      // Update agent status to offline before logging out
+      if (agentProfile?.id) {
+        await deliveryDispatch(updateAgentStatus({
+          agentId: agentProfile.id,
+          status: 'offline'
+        }));
+        // Update local state
+        setIsOnline(false);
+        setAgentProfile(prev => ({ ...prev, status: 'offline' }));
+      }
+
+      // Stop location tracking
+      stopLocationTracking();
+
+      // Use the proper logout hook
+      const result = await logout();
+      
+      if (!result.success) {
+        console.error('Logout failed:', result.error);
+        // Still navigate even if logout had issues
+        navigate('/', { replace: true });
+      }
+    } catch (error) {
+      console.error('Error during logout:', error);
+      navigate('/', { replace: true });
     }
   };
 
@@ -266,13 +531,15 @@ const DeliveryAgentDashboard = () => {
     );
   }
 
-  // Show loading state while checking agent profile
-  if (!agentProfile && user) {
+  // Show loading state while auth is loading or checking agent profile
+  if (authLoading || (!agentProfile && effectiveUser)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading dashboard...</p>
+          <p className="text-gray-600">
+            {authLoading ? 'Loading authentication...' : 'Loading dashboard...'}
+          </p>
         </div>
       </div>
     );
@@ -281,25 +548,65 @@ const DeliveryAgentDashboard = () => {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Header */}
-        <div className="bg-white rounded-lg shadow-sm mb-6">
+        {/* Enhanced Profile Header */}
+        <div className="bg-gradient-to-r from-green-600 to-green-700 rounded-lg shadow-lg mb-6 text-white">
           <div className="p-6">
             <div className="flex items-center justify-between">
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">Delivery Dashboard</h1>
-                <p className="text-gray-600">Welcome back, {agentProfile?.full_name || user?.user_metadata?.full_name || user?.email || 'Agent'}</p>
-                <p className="text-sm text-gray-500">{agentProfile?.vehicle_type} • {agentProfile?.vehicle_number}</p>
+              <div className="flex items-center space-x-4">
+                {/* Profile Avatar */}
+                <div className="relative">
+                  <div className="w-16 h-16 bg-white bg-opacity-20 rounded-full flex items-center justify-center text-2xl font-bold">
+                    {(agentProfile?.full_name || effectiveUser?.user_metadata?.full_name || effectiveUser?.email || 'A').charAt(0).toUpperCase()}
+                  </div>
+                  <div className={`absolute -bottom-1 -right-1 w-5 h-5 rounded-full border-2 border-white ${
+                    isOnline ? 'bg-green-400' : 'bg-gray-400'
+                  }`}></div>
+                </div>
+                
+                {/* Profile Info */}
+                <div>
+                  <p className="text-gray-600">Welcome back, {agentProfile?.full_name || effectiveUser?.user_metadata?.full_name || effectiveUser?.email || 'Agent'}</p>
+                  <div className="flex items-center space-x-4 text-green-100">
+                    <div className="flex items-center space-x-1">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M2.003 5.884L10 9.882l7.997-3.998A2 2 0 0016 4H4a2 2 0 00-1.997 1.884z"/>
+                        <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z"/>
+                      </svg>
+                      <span className="text-sm">{agentProfile?.email || effectiveUser?.email}</span>
+                    </div>
+                    <div className="flex items-center space-x-1">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"/>
+                      </svg>
+                      <span className="text-sm">{agentProfile?.phone || 'Not provided'}</span>
+                    </div>
+                  </div>
+                  
+                  {/* Vehicle Info */}
+                  <div className="mt-2 flex items-center space-x-4">
+                    <div className="bg-white bg-opacity-20 px-3 py-1 rounded-full flex items-center space-x-2">
+                      <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M4 4a2 2 0 00-2 2v4a2 2 0 002 2V6h10a2 2 0 00-2-2H4zm2 6a2 2 0 012-2h8a2 2 0 012 2v4a2 2 0 01-2 2H8a2 2 0 01-2-2v-4zm6 4a2 2 0 100-4 2 2 0 000 4z" clipRule="evenodd"/>
+                      </svg>
+                      <span className="text-sm font-medium capitalize">
+                        {agentProfile?.vehicle_type || 'Vehicle'}
+                      </span>
+                    </div>
+                    <div className="bg-white bg-opacity-20 px-3 py-1 rounded-full">
+                      <span className="text-sm font-medium">
+                        {agentProfile?.vehicle_number || 'N/A'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
               
               <div className="flex items-center space-x-4">
-                <div className="text-right">
-                  <p className="text-sm text-gray-600">Status</p>
-                  <div className="flex items-center space-x-2">
-                    <div className={`w-3 h-3 rounded-full ${
-                      isOnline ? 'bg-green-500' : 'bg-gray-400'
-                    }`}></div>
-                    <span className={`font-medium ${
-                      isOnline ? 'text-green-600' : 'text-gray-600'
+                <div className="text-right text-white">
+                  <p className="text-sm text-green-100">Current Status</p>
+                  <div className="flex items-center justify-end space-x-2">
+                    <span className={`font-medium text-lg ${
+                      isOnline ? 'text-green-200' : 'text-gray-300'
                     }`}>
                       {isOnline ? 'Online' : 'Offline'}
                     </span>
@@ -308,25 +615,166 @@ const DeliveryAgentDashboard = () => {
                 
                 <button
                   onClick={handleToggleOnlineStatus}
-                  className={`px-6 py-2 rounded-lg font-medium transition-colors ${
+                  className={`px-6 py-2 rounded-lg font-medium transition-all transform hover:scale-105 ${
                     isOnline 
-                      ? 'bg-red-600 text-white hover:bg-red-700' 
-                      : 'bg-green-600 text-white hover:bg-green-700'
+                      ? 'bg-red-500 text-white hover:bg-red-600 shadow-lg' 
+                      : 'bg-white text-green-700 hover:bg-green-50 shadow-lg'
                   }`}
                 >
                   {isOnline ? 'Go Offline' : 'Go Online'}
+                </button>
+
+                <button
+                  onClick={handleLogout}
+                  className="px-6 py-2 rounded-lg font-medium bg-white bg-opacity-20 text-white hover:bg-opacity-30 transition-all transform hover:scale-105 border border-white border-opacity-30"
+                >
+                  Logout
                 </button>
               </div>
             </div>
           </div>
         </div>
 
+        {/* Agent Performance Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white rounded-lg shadow-sm p-4">
+            <div className="flex items-center">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <svg className="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clipRule="evenodd"/>
+                </svg>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Total Deliveries</p>
+                <p className="text-2xl font-bold text-gray-900">{agentProfile?.total_deliveries || 0}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm p-4">
+            <div className="flex items-center">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <svg className="w-6 h-6 text-green-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd"/>
+                </svg>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Success Rate</p>
+                <p className="text-2xl font-bold text-gray-900">{agentProfile?.success_rate || 100}%</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm p-4">
+            <div className="flex items-center">
+              <div className="p-2 bg-yellow-100 rounded-lg">
+                <svg className="w-6 h-6 text-yellow-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M11.3 1.046A1 1 0 0112 2v5h4a1 1 0 01.82 1.573l-7 10A1 1 0 018 18v-5H4a1 1 0 01-.82-1.573l7-10a1 1 0 011.12-.38z" clipRule="evenodd"/>
+                </svg>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Avg. Rating</p>
+                <p className="text-2xl font-bold text-gray-900">{agentProfile?.average_rating || 4.8}</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-white rounded-lg shadow-sm p-4">
+            <div className="flex items-center">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <svg className="w-6 h-6 text-purple-600" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-12a1 1 0 10-2 0v4a1 1 0 00.293.707l2.828 2.829a1 1 0 101.415-1.415L11 9.586V6z" clipRule="evenodd"/>
+                </svg>
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Avg. Time</p>
+                <p className="text-2xl font-bold text-gray-900">{agentProfile?.average_delivery_time || 25}m</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Orders List */}
+          {/* Available Orders (when online) */}
+          {isOnline && (
+            <div className="bg-white rounded-lg shadow-sm">
+              <div className="p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center">
+                  <div className="w-3 h-3 bg-green-500 rounded-full mr-2 animate-pulse"></div>
+                  Available Orders ({availableOrders?.length || 0})
+                </h2>
+                
+                {availableOrders?.length === 0 ? (
+                  <div className="text-center py-8">
+                    <svg className="w-12 h-12 mx-auto text-gray-400 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-gray-600">No orders available</p>
+                    <p className="text-sm text-gray-500 mt-1">Waiting for new customer orders...</p>
+                  </div>
+                ) : (
+                  <div className="space-y-4 max-h-96 overflow-y-auto">
+                    {availableOrders.map((order) => (
+                      <div
+                        key={order.id}
+                        className="border border-blue-200 rounded-lg p-4 hover:border-blue-300 transition-colors bg-blue-50"
+                      >
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <h3 className="font-medium text-gray-900">Order #{order.id.slice(-8)}</h3>
+                            <p className="text-sm text-gray-600">
+                              {formatTime(order.created_at)} • {formatCurrency(order.total_amount)}
+                            </p>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <span className="px-2 py-1 text-xs font-medium bg-blue-100 text-blue-800 rounded-full">
+                              {order.status}
+                            </span>
+                          </div>
+                        </div>
+                        
+                        <div className="mb-3">
+                          <p className="text-sm text-gray-600 mb-1">Delivery Address:</p>
+                          <p className="text-sm font-medium text-gray-900">
+                            {order.addresses?.address_line_1}, {order.addresses?.city}
+                          </p>
+                        </div>
+
+                        <div className="mb-4">
+                          <p className="text-sm text-gray-600 mb-2">Items ({order.order_items?.length || 0}):</p>
+                          <div className="space-y-1">
+                            {order.order_items?.slice(0, 2).map((item, index) => (
+                              <p key={index} className="text-xs text-gray-700">
+                                {item.quantity}x {item.products?.name || 'Product'}
+                              </p>
+                            ))}
+                            {order.order_items?.length > 2 && (
+                              <p className="text-xs text-gray-500">
+                                +{order.order_items.length - 2} more items
+                              </p>
+                            )}
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => handleAcceptOrder(order.id)}
+                          className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium"
+                        >
+                          Accept Order
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Assigned Orders */}
           <div className="bg-white rounded-lg shadow-sm">
             <div className="p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">
-                Assigned Orders ({agentOrders?.length || 0})
+                My Orders ({agentOrders?.length || 0})
               </h2>
               
               {loading.orders ? (
@@ -369,6 +817,12 @@ const DeliveryAgentDashboard = () => {
                           {order.status.replace('_', ' ').toUpperCase()}
                         </span>
                       </div>
+                      
+                      {/* User Location Tracker for this order */}
+                      <DeliveryAgentOrderTracker 
+                        order={order} 
+                        agentId={agentProfile?.id} 
+                      />
                       
                       <div className="space-y-2">
                         <div className="flex items-start space-x-2">

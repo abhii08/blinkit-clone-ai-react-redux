@@ -22,8 +22,18 @@ const OrderConfirmation = () => {
 
   useEffect(() => {
     if (currentOrder && !agentAssigned) {
-      // Auto-assign delivery agent
-      assignAgent();
+      // Check if order already has an agent assigned
+      if (currentOrder.delivery_agent_id) {
+        setAgentAssigned(true);
+        // Set estimated delivery time (8 minutes from now)
+        const deliveryTime = new Date();
+        deliveryTime.setMinutes(deliveryTime.getMinutes() + 8);
+        setEstimatedDeliveryTime(deliveryTime);
+      } else if (currentOrder.status === 'confirmed') {
+        // Don't auto-assign - let delivery agents accept orders manually from their dashboard
+        // Order will appear in "Available Orders" section for agents to accept
+        console.log('Order confirmed, waiting for delivery agent to accept:', currentOrder.id);
+      }
     }
   }, [currentOrder, agentAssigned]);
 
@@ -31,33 +41,53 @@ const OrderConfirmation = () => {
     if (!currentOrder) return;
 
     try {
-      // Fetch available agents near the delivery location
-      await deliveryDispatch(fetchAvailableAgents({
-        latitude: currentOrder.delivery_latitude,
-        longitude: currentOrder.delivery_longitude,
-        radius: 5
-      }));
-
-      // Simulate agent assignment after a short delay
-      setTimeout(async () => {
-        const mockAgent = {
-          id: 'agent_' + Math.random().toString(36).substr(2, 9),
-          name: 'Delivery Agent',
-          phone: '+91 98765 43210',
-          rating: 4.8,
-          vehicle_type: 'bike'
-        };
-
-        await orderDispatch(assignDeliveryAgent({
-          orderId: currentOrder.id,
-          agentId: mockAgent.id
-        }));
-
-        setAgentAssigned(true);
-        setEstimatedDeliveryTime(new Date(Date.now() + 8 * 60 * 1000)); // 8 minutes from now
-      }, 2000);
+      setAgentAssigned(true);
+      
+      // Verify order exists before attempting assignment
+      const orderExists = await db.getOrderById(currentOrder.id);
+      if (!orderExists) {
+        throw new Error(`Order ${currentOrder.id} not found in database`);
+      }
+      
+      console.log('Order verification successful:', {
+        orderId: currentOrder.id,
+        status: orderExists.status,
+        userId: orderExists.user_id
+      });
+      
+      // Get available agents
+      const agents = await db.getAvailableDeliveryAgents(0, 0);
+      
+      if (agents.length > 0) {
+        // Assign first available agent
+        const agent = agents[0];
+        
+        // Use the assignDeliveryAgent function which updates the order and returns the updated data
+        const updatedOrder = await db.assignDeliveryAgent(currentOrder.id, agent.id);
+        
+        // Update agent status to busy
+        await db.updateAgentStatus(agent.id, 'busy');
+        
+        // Refresh order data to get the latest state
+        orderDispatch(fetchOrderById(currentOrder.id));
+        
+        // Set estimated delivery time (8 minutes from now)
+        const deliveryTime = new Date();
+        deliveryTime.setMinutes(deliveryTime.getMinutes() + 8);
+        setEstimatedDeliveryTime(deliveryTime);
+      } else {
+        throw new Error('No available delivery agents found');
+      }
     } catch (error) {
       console.error('Error assigning agent:', error);
+      setAgentAssigned(false);
+      
+      // Show user-friendly error message
+      if (error.message.includes('not found')) {
+        console.error('Order verification failed - order may not exist in database');
+      } else if (error.message.includes('No available')) {
+        console.error('No delivery agents available at the moment');
+      }
     }
   };
 
@@ -84,7 +114,6 @@ const OrderConfirmation = () => {
     switch (status) {
       case 'pending': return 'Order Received';
       case 'confirmed': return 'Order Confirmed';
-      case 'preparing': return 'Preparing Order';
       case 'out_for_delivery': return 'Out for Delivery';
       case 'delivered': return 'Delivered';
       default: return 'Processing';
@@ -171,14 +200,14 @@ const OrderConfirmation = () => {
               </div>
 
               {/* Delivery Agent Assignment */}
-              {!agentAssigned ? (
+              {deliveryLoading.fetch ? (
                 <div className="mt-6 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                   <div className="flex items-center space-x-3">
                     <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-yellow-600"></div>
-                    <p className="text-yellow-800 font-medium">Assigning delivery agent...</p>
+                    <p className="text-yellow-800 font-medium">Searching for delivery agents...</p>
                   </div>
                 </div>
-              ) : (
+              ) : agentAssigned ? (
                 <div className="mt-6 p-4 bg-green-50 border border-green-200 rounded-lg">
                   <div className="flex items-center space-x-3">
                     <div className="w-10 h-10 bg-green-600 rounded-full flex items-center justify-center">
@@ -189,6 +218,20 @@ const OrderConfirmation = () => {
                     <div>
                       <p className="font-medium text-gray-900">Delivery Agent Assigned</p>
                       <p className="text-sm text-gray-600">Your order will be delivered in 8 minutes</p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-6 p-4 bg-orange-50 border border-orange-200 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-orange-500 rounded-full flex items-center justify-center">
+                      <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">No Delivery Agents Available</p>
+                      <p className="text-sm text-gray-600">We're looking for available agents in your area. Your order will be processed as soon as an agent comes online.</p>
                     </div>
                   </div>
                 </div>

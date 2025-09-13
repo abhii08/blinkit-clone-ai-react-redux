@@ -2,6 +2,7 @@ import { Provider } from 'react-redux';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { store } from '../redux/store';
 import { useAuthSession } from './hooks/useAuthSession';
+import AuthProvider from './components/AuthProvider';
 import Layout from './components/Layout';
 import RoleSelection from './components/RoleSelection';
 import HomePage from './components/HomePage';
@@ -19,18 +20,20 @@ function AppContent() {
   useAuthSession();
 
   return (
-    <Layout>
-      <Routes>
-        <Route path="/" element={<RoleSelection />} />
-        <Route path="/home" element={<HomePage />} />
-        <Route path="/category/:categorySlug" element={<CategoryPage />} />
-        <Route path="/order-placement" element={<OrderPlacement />} />
-        <Route path="/order-confirmation/:orderId" element={<OrderConfirmation />} />
-        <Route path="/track-order/:orderId" element={<OrderTracking />} />
-        <Route path="/orders" element={<OrdersList />} />
-        <Route path="/delivery-dashboard" element={<DeliveryAgentDashboard />} />
-      </Routes>
-    </Layout>
+    <AuthProvider>
+      <Layout>
+        <Routes>
+          <Route path="/" element={<RoleSelection />} />
+          <Route path="/home" element={<HomePage />} />
+          <Route path="/category/:categorySlug" element={<CategoryPage />} />
+          <Route path="/order-placement" element={<OrderPlacement />} />
+          <Route path="/order-confirmation/:orderId" element={<OrderConfirmation />} />
+          <Route path="/track-order/:orderId" element={<OrderTracking />} />
+          <Route path="/orders" element={<OrdersList />} />
+          <Route path="/delivery-dashboard" element={<DeliveryAgentDashboard />} />
+        </Routes>
+      </Layout>
+    </AuthProvider>
   );
 }
 

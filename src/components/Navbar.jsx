@@ -1,6 +1,8 @@
 import { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth, useCart, useLocation } from '../../redux/hooks';
+import { useRoleBasedAuth } from '../hooks/useRoleBasedAuth';
+import { getRoleContext, ROLES } from '../utils/roleContext';
 import ProfileDropdown from './ProfileDropdown';
 import { BsCart4 } from 'react-icons/bs';
 import dhipramLogo from '../assets/dhipram-logo.svg';
@@ -10,9 +12,13 @@ const Navbar = ({ onLoginClick, onCartClick, onLocationClick }) => {
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const profileButtonRef = useRef(null);
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user: effectiveUser } = useRoleBasedAuth();
   const { totalItems } = useCart();
   const { selectedAddress, currentLocation } = useLocation();
+  
+  // Only show user data if we're in user role context
+  const roleContext = getRoleContext();
+  const displayUser = roleContext === ROLES.USER ? effectiveUser : null;
 
   const handleLogoClick = () => {
     navigate('/home');
@@ -83,7 +89,7 @@ const Navbar = ({ onLoginClick, onCartClick, onLocationClick }) => {
 
           {/* Login & Cart */}
           <div className="flex items-center space-x-4">
-            {user ? (
+            {displayUser ? (
               <div className="relative">
                 <button
                   ref={profileButtonRef}
@@ -103,18 +109,18 @@ const Navbar = ({ onLoginClick, onCartClick, onLocationClick }) => {
                       </svg>
                     </div>
                     <p className="text-xs text-gray-500 text-left">
-                      {user.user_metadata?.full_name || user.email?.split('@')[0]}
+                      {displayUser.user_metadata?.full_name || displayUser.email?.split('@')[0]}
                     </p>
                   </div>
                   <div className="w-8 h-8 bg-green-600 rounded-full flex items-center justify-center text-white font-medium">
-                    {(user.user_metadata?.full_name || user.email)[0].toUpperCase()}
+                    {(displayUser.user_metadata?.full_name || displayUser.email)[0].toUpperCase()}
                   </div>
                 </button>
 
                 <ProfileDropdown
                   isOpen={showProfileDropdown}
                   onClose={() => setShowProfileDropdown(false)}
-                  user={user}
+                  user={displayUser}
                   triggerRef={profileButtonRef}
                 />
               </div>

@@ -19,6 +19,7 @@ export const signUpUser = createAsyncThunk(
       
       return data;
     } catch (error) {
+      console.error('Auth signup error:', error);
       // Handle specific error cases with better messages
       if (error.message.includes('already registered')) {
         return rejectWithValue('This email is already registered. Please sign in or reset your password.');
@@ -41,6 +42,7 @@ export const signInUser = createAsyncThunk(
       
       return data;
     } catch (error) {
+      console.error('Auth signin error:', error);
       // Handle specific error cases with better messages
       if (error.message.includes('Email not confirmed')) {
         return rejectWithValue('Please confirm your email before signing in. Check your inbox for the confirmation email.');
@@ -100,6 +102,7 @@ const initialState = {
   message: null,
   requiresConfirmation: false,
   initialized: false,
+  sessionChecked: false,
 };
 
 const authSlice = createSlice({
@@ -120,10 +123,12 @@ const authSlice = createSlice({
       state.user = action.payload;
       state.isAuthenticated = !!action.payload;
       state.initialized = true;
+      state.sessionChecked = true;
     },
     clearUser: (state) => {
       state.user = null;
       state.isAuthenticated = false;
+      state.sessionChecked = true;
     },
   },
   extraReducers: (builder) => {
@@ -186,11 +191,15 @@ const authSlice = createSlice({
         state.user = action.payload;
         state.isAuthenticated = !!action.payload;
         state.initialized = true;
+        state.sessionChecked = true;
       })
       .addCase(getCurrentUser.rejected, (state, action) => {
         state.loading = false;
         state.error = action.payload;
         state.initialized = true;
+        state.sessionChecked = true;
+        state.user = null;
+        state.isAuthenticated = false;
       })
       // Update Profile
       .addCase(updateUserProfile.pending, (state) => {
@@ -208,5 +217,5 @@ const authSlice = createSlice({
   },
 });
 
-export const { clearError, setUser, clearUser } = authSlice.actions;
+export const { clearError, clearMessage, setRequiresConfirmation, setUser, clearUser } = authSlice.actions;
 export default authSlice.reducer;

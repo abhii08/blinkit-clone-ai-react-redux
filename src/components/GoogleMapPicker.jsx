@@ -66,12 +66,17 @@ const GoogleMapPicker = ({
       });
 
       // Function to get address from coordinates (without geocoder to avoid billing issues)
-      const getAddressFromCoords = (lat, lng) => {
-        // Generate a location name based on coordinates
-        const locationCode = `${lng.toFixed(6)}`;
-        const address = `Delivery Location ${locationCode}`;
-        setSelectedAddress(address);
-        console.log('Selected coordinates:', { lat, lng });
+      const getAddressFromCoords = async (lat, lng) => {
+        try {
+          // Generate a location name based on coordinates
+          const locationCode = `${lng.toFixed(6)}`;
+          const address = `Delivery Location ${locationCode}`;
+          setSelectedAddress(address);
+          console.log('Selected coordinates:', { lat, lng });
+        } catch (error) {
+          console.error('Error getting address from coordinates:', error);
+          setSelectedAddress('Unknown Location');
+        }
       };
 
       // Initial address lookup

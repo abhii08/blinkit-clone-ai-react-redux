@@ -101,17 +101,17 @@ const CartSidebar = () => {
   const handleIncrement = useCallback(async (productId) => {
     if (processingItems.has(productId)) return;
     
-    // Check stock availability
-    const currentItem = allItems.find(item => item.product_id === productId);
-    const stock = stockInfo.get(productId);
-    
-    if (stock && currentItem && currentItem.quantity >= stock.available) {
-      // Show stock limit message (you could replace this with a toast notification)
-      alert(`Only ${stock.available} items available in stock`);
-      return;
-    }
-    
     try {
+      // Check stock availability
+      const currentItem = allItems.find(item => item.product_id === productId);
+      const stock = stockInfo.get(productId);
+      
+      if (stock && currentItem && currentItem.quantity >= stock.available) {
+        // Show stock limit message (you could replace this with a toast notification)
+        alert(`Only ${stock.available} items available in stock`);
+        return;
+      }
+      
       setItemProcessing(productId, true);
       
       if (user) {
@@ -152,12 +152,12 @@ const CartSidebar = () => {
   const handleDecrement = useCallback(async (productId) => {
     if (processingItems.has(productId)) return;
     
-    const currentItem = allItems.find(item => item.product_id === productId);
-    if (!currentItem) {
-      return;
-    }
-
     try {
+      const currentItem = allItems.find(item => item.product_id === productId);
+      if (!currentItem) {
+        return;
+      }
+
       setItemProcessing(productId, true);
       
       if (user) {

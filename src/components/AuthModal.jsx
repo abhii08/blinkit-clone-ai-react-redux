@@ -77,21 +77,16 @@ const AuthModal = ({ isOpen, initialMode = 'login' }) => {
           email: formData.email, 
           password: formData.password, 
           userData: { 
-            full_name: formData.fullName, 
-            phone: formData.phone 
+            full_name: formData.fullName,
+            phone: formData.phone
           }
         })).unwrap();
+        authRateLimiter.reset(formData.email); // Reset on successful signup
       }
-      
-      // Execute pending action if exists
-      if (pendingAction) {
-        executePendingAction(pendingAction);
-        dispatch(clearPendingAction());
-      }
-      
       dispatch(closeAuthModal());
     } catch (error) {
-      // Error is handled by Redux
+      console.error('Authentication error:', error);
+      authRateLimiter.recordAttempt(formData.email);
     }
   };
 

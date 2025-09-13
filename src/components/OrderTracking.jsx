@@ -1,8 +1,10 @@
 import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { useOrder, useDelivery } from '../../redux/hooks';
+import { useOrder, useDelivery, useAuth } from '../../redux/hooks';
 import { fetchOrderById, subscribeToOrderUpdates } from '../../redux/slices/orderSlice';
 import { subscribeToAgentLocation } from '../../redux/slices/deliverySlice';
+import { useAuthSession } from '../hooks/useAuthSession';
+import UserLocationTracker from './UserLocationTracker';
 import GoogleMapTracker from './GoogleMapTracker';
 
 const OrderTracking = () => {
@@ -10,6 +12,8 @@ const OrderTracking = () => {
   const navigate = useNavigate();
   const { currentOrder, loading, dispatch: orderDispatch } = useOrder();
   const { currentAgent, agentLocation, dispatch: deliveryDispatch } = useDelivery();
+  const { user } = useAuth();
+  useAuthSession(); // Initialize auth session
   
   const [orderStatusHistory, setOrderStatusHistory] = useState([]);
   const subscriptionRef = useRef(null);
@@ -72,18 +76,11 @@ const OrderTracking = () => {
         completed: ['confirmed', 'preparing', 'out_for_delivery', 'delivered'].includes(order.status)
       },
       {
-        status: 'preparing',
-        title: 'Preparing Order',
-        description: 'Your items are being packed',
-        time: new Date(baseTime.getTime() + 4 * 60 * 1000),
-        completed: ['preparing', 'out_for_delivery', 'delivered'].includes(order.status)
-      },
-      {
         status: 'out_for_delivery',
         title: 'Out for Delivery',
         description: 'Your order is on the way',
         time: new Date(baseTime.getTime() + 6 * 60 * 1000),
-        completed: ['out_for_delivery', 'delivered'].includes(order.status)
+        completed: ['preparing', 'out_for_delivery', 'delivered'].includes(order.status)
       },
       {
         status: 'delivered',
@@ -256,6 +253,13 @@ const OrderTracking = () => {
           <div className="bg-white rounded-lg shadow-sm">
             <div className="p-6">
               <h2 className="text-lg font-semibold text-gray-900 mb-4">Live Tracking</h2>
+              
+              {/* User Location Tracker - enables location sharing for delivery agent */}
+              <UserLocationTracker 
+                orderId={orderId}
+                userId={user?.id}
+                isActive={currentOrder?.status === 'out_for_delivery' || currentOrder?.status === 'preparing'}
+              />
               
               <div className="h-96 rounded-lg overflow-hidden">
                 <GoogleMapTracker

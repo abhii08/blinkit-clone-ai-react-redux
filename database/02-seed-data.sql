@@ -1,18 +1,18 @@
 -- =====================================================
 -- BLINKIT CLONE - SEED DATA
 -- =====================================================
--- Sample data for Product Catalog
--- Run this AFTER running complete-schema.sql
+-- Sample data for Product Catalog and Stores
+-- Run this AFTER running 01-schema.sql
 -- =====================================================
 
 -- Insert Categories
 INSERT INTO categories (name, slug, description, image_url, sort_order) VALUES
-('Dairy, Bread & Eggs', 'dairy-bread-eggs', 'Fresh dairy products, bread and eggs', 'https://cdn.grofers.com/layout-engine/2022-05/paan-corner_web.png', 1),
-('Sweet Tooth', 'sweet-tooth', 'Chocolates, candies and sweet treats', 'https://cdn.grofers.com/layout-engine/2022-05/Slice-2_4.png', 2),
-('Snacks & Munchies', 'snacks-munchies', 'Chips, namkeen and quick bites', 'https://cdn.grofers.com/layout-engine/2022-05/Slice-3_4.png', 3),
-('Cold Drinks & Juices', 'cold-drinks-juices', 'Refreshing beverages and juices', 'https://cdn.grofers.com/layout-engine/2022-05/Slice-4_9.png', 4),
-('Fruits & Vegetables', 'fruits-vegetables', 'Fresh fruits and vegetables', 'https://cdn.grofers.com/layout-engine/2022-05/Slice-5_4.png', 5),
-('Personal Care', 'personal-care', 'Health and hygiene products', 'https://cdn.grofers.com/layout-engine/2022-05/Slice-6_5.png', 6);
+('Dairy, Bread & Eggs', 'dairy-bread-eggs', 'Fresh dairy products, bread and eggs', 'https://images.unsplash.com/photo-1563636619-e9143da7973b?w=200&h=200&fit=crop&crop=center', 1),
+('Sweet Tooth', 'sweet-tooth', 'Chocolates, candies and sweet treats', 'https://images.unsplash.com/photo-1549007994-cb92caebd54b?w=200&h=200&fit=crop&crop=center', 2),
+('Snacks & Munchies', 'snacks-munchies', 'Chips, namkeen and quick bites', 'https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=200&h=200&fit=crop&crop=center', 3),
+('Cold Drinks & Juices', 'cold-drinks-juices', 'Refreshing beverages and juices', 'https://images.unsplash.com/photo-1544145945-f90425340c7e?w=200&h=200&fit=crop&crop=center', 4),
+('Fruits & Vegetables', 'fruits-vegetables', 'Fresh fruits and vegetables', 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?w=200&h=200&fit=crop&crop=center', 5),
+('Personal Care', 'personal-care', 'Health and hygiene products', 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=200&h=200&fit=crop&crop=center', 6);
 
 -- Insert Products for Dairy, Bread & Eggs
 INSERT INTO products (category_id, name, description, brand, price, mrp, unit, image_url, delivery_time) VALUES
@@ -63,15 +63,7 @@ INSERT INTO products (category_id, name, description, brand, price, mrp, unit, i
 ((SELECT id FROM categories WHERE slug = 'personal-care'), 'Nivea Body Lotion', 'Moisturizing lotion', 'Nivea', 199.00, 220.00, '400ml', 'https://images.unsplash.com/photo-1556228720-195a672e8a03?w=400&h=400&fit=crop', 15),
 ((SELECT id FROM categories WHERE slug = 'personal-care'), 'Oral-B Toothbrush', 'Soft bristle toothbrush', 'Oral-B', 45.00, 50.00, '1 piece', 'https://images.unsplash.com/photo-1607613009820-a29f7bb81c04?w=400&h=400&fit=crop', 15);
 
--- Insert Products for Fruits & Vegetables
-INSERT INTO products (category_id, name, description, brand, price, mrp, unit, image_url, delivery_time) VALUES
-((SELECT id FROM categories WHERE slug = 'fruits-vegetables'), 'Fresh Bananas', 'Ripe yellow bananas', 'Fresh', 40.00, 45.00, '1kg', 'https://images.unsplash.com/photo-1571771894821-ce9b6c11b08e?w=400&h=400&fit=crop', 15),
-((SELECT id FROM categories WHERE slug = 'fruits-vegetables'), 'Red Apples', 'Crispy red apples', 'Fresh', 120.00, 130.00, '1kg', 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?w=400&h=400&fit=crop', 15),
-((SELECT id FROM categories WHERE slug = 'fruits-vegetables'), 'Fresh Tomatoes', 'Red ripe tomatoes', 'Fresh', 30.00, 35.00, '500g', 'https://images.unsplash.com/photo-1592924357228-91a4daadcfea?w=400&h=400&fit=crop', 15),
-((SELECT id FROM categories WHERE slug = 'fruits-vegetables'), 'Green Onions', 'Fresh spring onions', 'Fresh', 25.00, 30.00, '250g', 'https://images.unsplash.com/photo-1618512496248-a07fe83aa8cb?w=400&h=400&fit=crop', 15),
-((SELECT id FROM categories WHERE slug = 'fruits-vegetables'), 'Fresh Potatoes', 'Quality potatoes', 'Fresh', 20.00, 25.00, '1kg', 'https://images.unsplash.com/photo-1518977676601-b53f82aba655?w=400&h=400&fit=crop', 15);
-
--- Insert Sample Store
+-- Insert Sample Stores
 INSERT INTO stores (name, address, latitude, longitude, phone, email, delivery_radius_km, operating_hours) VALUES
 ('Blinkit Store - Central Delhi', 'Connaught Place, New Delhi, Delhi 110001', 28.6315, 77.2167, '+91-9876543210', 'store1@blinkit.com', 15.0, 
 '{"monday": {"open": "06:00", "close": "23:00"}, "tuesday": {"open": "06:00", "close": "23:00"}, "wednesday": {"open": "06:00", "close": "23:00"}, "thursday": {"open": "06:00", "close": "23:00"}, "friday": {"open": "06:00", "close": "23:00"}, "saturday": {"open": "06:00", "close": "23:00"}, "sunday": {"open": "06:00", "close": "23:00"}}'),

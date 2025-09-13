@@ -1,14 +1,9 @@
 -- =====================================================
--- BLINKIT CLONE - COMPLETE DATABASE SCHEMA
+-- BLINKIT CLONE - DATABASE SCHEMA
 -- =====================================================
--- This file contains the complete database schema for the Blinkit Clone
--- Run this file to set up the entire database structure
--- 
--- CONSOLIDATED FIXES INCLUDED:
--- - Fixed order_items table with total_price column
--- - Fixed orders location trigger for delivery_latitude/delivery_longitude
--- - User type metadata updates for auth distinction
--- - Category image fixes
+-- Complete database schema for the Blinkit Clone application
+-- This file creates all tables, indexes, functions, and triggers
+-- Run this file first to set up the database structure
 -- =====================================================
 
 -- Enable necessary extensions
@@ -78,43 +73,6 @@ CREATE TABLE inventory (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     UNIQUE(store_id, product_id)
 );
-
--- =====================================================
--- POST-SETUP DATA UPDATES AND FIXES
--- =====================================================
-
--- Update user metadata to distinguish between regular users and delivery agents
--- First, update all existing users to have user_type = 'user' by default
-UPDATE auth.users 
-SET raw_user_meta_data = COALESCE(raw_user_meta_data, '{}'::jsonb) || '{"user_type": "user"}'::jsonb
-WHERE raw_user_meta_data IS NULL OR NOT raw_user_meta_data ? 'user_type';
-
--- Then, update users who are delivery agents to have user_type = 'delivery_agent'
-UPDATE auth.users 
-SET raw_user_meta_data = raw_user_meta_data || '{"user_type": "delivery_agent"}'::jsonb
-WHERE id IN (
-    SELECT user_id 
-    FROM public.delivery_agents
-);
-
--- Update category images with proper URLs
-UPDATE categories SET image_url = 'https://images.unsplash.com/photo-1563636619-e9143da7973b?w=200&h=200&fit=crop&crop=center' 
-WHERE slug = 'dairy-bread-eggs';
-
-UPDATE categories SET image_url = 'https://images.unsplash.com/photo-1549007994-cb92caebd54b?w=200&h=200&fit=crop&crop=center' 
-WHERE slug = 'sweet-tooth';
-
-UPDATE categories SET image_url = 'https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=200&h=200&fit=crop&crop=center' 
-WHERE slug = 'snacks-munchies';
-
-UPDATE categories SET image_url = 'https://images.unsplash.com/photo-1544145945-f90425340c7e?w=200&h=200&fit=crop&crop=center' 
-WHERE slug = 'cold-drinks-juices';
-
-UPDATE categories SET image_url = 'https://images.unsplash.com/photo-1610832958506-aa56368176cf?w=200&h=200&fit=crop&crop=center' 
-WHERE slug = 'fruits-vegetables';
-
-UPDATE categories SET image_url = 'https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=200&h=200&fit=crop&crop=center' 
-WHERE slug = 'personal-care';
 
 -- =====================================================
 -- USER MANAGEMENT TABLES
@@ -206,6 +164,9 @@ CREATE TABLE orders (
     delivery_latitude DECIMAL(10,8),
     delivery_longitude DECIMAL(11,8),
     delivery_location GEOGRAPHY(POINT, 4326),
+    user_current_latitude DECIMAL(10,8),
+    user_current_longitude DECIMAL(11,8),
+    user_location_updated_at TIMESTAMP WITH TIME ZONE,
     payment_method VARCHAR(20) DEFAULT 'cod' CHECK (payment_method IN ('cod', 'online', 'wallet')),
     payment_status VARCHAR(20) DEFAULT 'pending' CHECK (payment_status IN ('pending', 'paid', 'failed', 'refunded')),
     payment_id TEXT,
@@ -323,7 +284,7 @@ CREATE TABLE agent_earnings (
 );
 
 -- =====================================================
--- INDEXES
+-- INDEXES FOR PERFORMANCE
 -- =====================================================
 
 -- Core indexes
@@ -392,7 +353,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Apply triggers
+-- Apply location triggers
 CREATE TRIGGER trigger_stores_location BEFORE INSERT OR UPDATE ON stores FOR EACH ROW EXECUTE FUNCTION update_location_geography();
 CREATE TRIGGER trigger_addresses_location BEFORE INSERT OR UPDATE ON addresses FOR EACH ROW EXECUTE FUNCTION update_location_geography();
 CREATE TRIGGER trigger_orders_location BEFORE INSERT OR UPDATE ON orders FOR EACH ROW EXECUTE FUNCTION update_orders_location_geography();
@@ -460,9 +421,15 @@ CREATE POLICY "Users can manage their own data" ON addresses FOR ALL USING (auth
 CREATE POLICY "Users can manage their own cart" ON cart_items FOR ALL USING (auth.uid() = user_id);
 CREATE POLICY "Users can view their own orders" ON orders FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Users can create their own orders" ON orders FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users can update their own orders" ON orders FOR UPDATE USING (auth.uid() = user_id);
 CREATE POLICY "Users can view their own notifications" ON notifications FOR ALL USING (auth.uid() = user_id);
 
 -- Agent policies
+CREATE POLICY "Agents can view orders assigned to them" ON orders FOR SELECT USING (delivery_agent_id IN (SELECT id FROM delivery_agents WHERE user_id = auth.uid()));
+CREATE POLICY "Agents can update orders assigned to them" ON orders FOR UPDATE USING (delivery_agent_id IN (SELECT id FROM delivery_agents WHERE user_id = auth.uid()));
+
+-- System policies for order assignment
+CREATE POLICY "System can assign delivery agents to orders" ON orders FOR UPDATE USING (true);
 CREATE POLICY "Agents can insert their own profile" ON delivery_agents FOR INSERT WITH CHECK (auth.uid() = user_id);
 CREATE POLICY "Agents can view and update their own profile" ON delivery_agents FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "Agents can update their own profile" ON delivery_agents FOR UPDATE USING (auth.uid() = user_id);

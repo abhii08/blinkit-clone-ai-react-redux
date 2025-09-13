@@ -10,6 +10,7 @@ export const fetchCartItems = createAsyncThunk(
       const items = await db.getCartItems(userId);
       return items;
     } catch (error) {
+      console.error('Cart fetch error:', error);
       return rejectWithValue(error.message);
     }
   }
@@ -23,6 +24,7 @@ export const addItemToCart = createAsyncThunk(
       const updatedItems = await db.getCartItems(userId);
       return updatedItems;
     } catch (error) {
+      console.error('Cart add item error:', error);
       return rejectWithValue(error.message);
     }
   }
@@ -36,6 +38,7 @@ export const updateCartItemQuantity = createAsyncThunk(
       const updatedItems = await db.getCartItems(userId);
       return updatedItems;
     } catch (error) {
+      console.error('Cart update quantity error:', error);
       return rejectWithValue(error.message);
     }
   }
@@ -49,6 +52,7 @@ export const removeItemFromCart = createAsyncThunk(
       const updatedItems = await db.getCartItems(userId);
       return updatedItems;
     } catch (error) {
+      console.error('Cart remove item error:', error);
       return rejectWithValue(error.message);
     }
   }
@@ -61,6 +65,7 @@ export const clearCart = createAsyncThunk(
       await db.clearCart(userId);
       return [];
     } catch (error) {
+      console.error('Cart clear error:', error);
       return rejectWithValue(error.message);
     }
   }
