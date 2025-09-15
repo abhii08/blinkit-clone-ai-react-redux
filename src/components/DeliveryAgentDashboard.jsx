@@ -79,48 +79,35 @@ const DeliveryAgentDashboard = () => {
       }
 
       try {
-        console.log('Checking agent profile for user:', effectiveUser.id, effectiveUser.email);
+        console.log('Checking agent profile for user:', effectiveUser.id);
         
-        // Remove .single() to avoid error when no rows exist
         const { data: agentData, error } = await supabase
           .from('delivery_agents')
           .select('*')
-          .eq('user_id', effectiveUser.id);
-
-        console.log('Agent profile query result:', { agentData, error });
+          .eq('user_id', effectiveUser.id)
+          .single();
 
         if (error) {
           console.error('Error fetching agent profile:', error);
-          // Show auth modal for any database errors
+          if (error.code === 'PGRST116') {
+            console.log('No agent profile found for user');
+          }
           setShowAuthModal(true);
           return;
         }
 
-        // Check if agent profile exists (agentData will be an array)
-        if (!agentData || agentData.length === 0) {
-          console.log('No delivery agent profile found for user:', effectiveUser.email);
-          console.log('User ID:', effectiveUser.id);
-          console.log('User should sign up as delivery agent first');
+        if (agentData) {
+          console.log('Agent profile found:', agentData);
+          setAgentProfile(agentData);
+        } else {
+          console.log('No agent profile found');
           setShowAuthModal(true);
-          return;
         }
-
-        // Get the first (and should be only) agent profile
-        const agentProfile = agentData[0];
-        console.log('Found agent profile:', agentProfile);
-        setAgentProfile(agentProfile);
-        // Set online status based on database status
-        const isAgentOnline = agentProfile.status === 'available' || agentProfile.status === 'busy' || agentProfile.status === 'delivering';
-        setIsOnline(isAgentOnline);
-        setShowAuthModal(false);
-        
-        // Fetch agent orders
-        deliveryDispatch(fetchAgentOrders(agentProfile.id));
       } catch (error) {
-        console.error('Error checking agent profile:', error);
+        console.error('Unexpected error in checkAgentProfile:', error);
         setShowAuthModal(true);
       }
-   };
+    };
 
     // Check if user has delivery agent profile
     checkAgentProfile();
@@ -174,23 +161,29 @@ const DeliveryAgentDashboard = () => {
 
     const syncAgentStatus = async () => {
       try {
+        if (!agentProfile?.id) {
+          console.warn('No agent profile ID available for status sync');
+          return;
+        }
+
         const { data: agentData, error } = await supabase
           .from('delivery_agents')
           .select('status')
           .eq('id', agentProfile.id)
           .single();
 
-        if (!error && agentData) {
-          const dbIsOnline = agentData.status === 'available' || agentData.status === 'busy' || agentData.status === 'delivering';
-          
-          // Only update if there's a mismatch
-          if (dbIsOnline !== isOnline) {
-            setIsOnline(dbIsOnline);
-            setAgentProfile(prev => ({ ...prev, status: agentData.status }));
+        if (error) {
+          console.error('Error syncing agent status:', error);
+          if (error.code === 'PGRST116') {
+            console.warn('Agent profile not found during status sync');
           }
+          return;
         }
+
+        const currentStatus = agentData?.status || 'offline';
+        setIsOnline(currentStatus === 'available' || currentStatus === 'online');
       } catch (error) {
-        // Silently handle errors to avoid disrupting user experience
+        console.error('Unexpected error in syncAgentStatus:', error);
       }
     };
 
@@ -343,33 +336,47 @@ const DeliveryAgentDashboard = () => {
   };
 
   const handleToggleOnlineStatus = async () => {
+    if (!agentProfile?.id) {
+      console.error('No agent profile available for status update');
+      return;
+    }
+
     const newStatus = isOnline ? 'offline' : 'available';
     
     try {
-      // Use agentProfile.id instead of effectiveUser.id
-      const result = await deliveryDispatch(updateAgentStatus({
+      await deliveryDispatch(updateAgentStatus({
         agentId: agentProfile.id,
         status: newStatus
       }));
       
-      // Only update local state if the database update was successful
-      if (result.type === 'delivery/updateAgentStatus/fulfilled') {
-        setIsOnline(!isOnline);
-        // Update the agentProfile state to reflect the new status
-        setAgentProfile(prev => ({ ...prev, status: newStatus }));
-
-        // When going online, fetch available orders
-        if (newStatus === 'available') {
-          fetchAvailableOrders();
-          startLocationTracking();
-        } else {
-          stopLocationTracking();
+      setIsOnline(!isOnline);
+      
+      if (newStatus === 'available') {
+        // Start location tracking when going online
+        startLocationTracking();
+        // Fetch available orders immediately when going online
+        try {
+          await fetchAvailableOrders();
+        } catch (fetchError) {
+          console.error('Error fetching available orders:', fetchError);
         }
       } else {
-        throw new Error('Failed to update agent status in database');
+        // Stop location tracking when going offline
+        stopLocationTracking();
+        // Clear available orders
+        setAvailableOrders([]);
+        // Unsubscribe from real-time updates
+        if (realTimeSubscription) {
+          try {
+            realTimeSubscription.unsubscribe();
+          } catch (unsubError) {
+            console.error('Error unsubscribing from real-time updates:', unsubError);
+          }
+          setRealTimeSubscription(null);
+        }
       }
     } catch (error) {
-      alert('Failed to update status');
+      console.error('Error updating agent status:', error);
     }
   };
 

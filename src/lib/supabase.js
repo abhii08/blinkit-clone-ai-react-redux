@@ -33,14 +33,20 @@ export const db = {
         .eq('is_active', true)
         .order('sort_order')
       
-      if (error) throw error
+      if (error) {
+        console.error('Supabase error fetching categories:', error);
+        throw new Error(`Failed to fetch categories: ${error.message}`);
+      }
       
       // Cache the result
       categoriesCache.set(CACHE_KEYS.CATEGORIES, data);
-      return data
+      return data || [];
     } catch (error) {
-      // Error fetching categories
-      throw error
+      console.error('Error fetching categories:', error);
+      if (error.message?.includes('Failed to fetch categories')) {
+        throw error;
+      }
+      throw new Error(`Database connection error: ${error.message}`);
     }
   },
 
@@ -56,18 +62,23 @@ export const db = {
       const { data, error } = await supabase.rpc('get_homepage_data')
       
       if (error) {
-        console.warn('RPC function not available, falling back to separate queries')
+        console.warn('RPC function not available, falling back to separate queries:', error.message);
         // Fallback to separate queries if RPC function doesn't exist
-        return await db.getHomepageDataFallback()
+        return await db.getHomepageDataFallback();
       }
       
       // Cache the result
       homepageCache.set(CACHE_KEYS.HOMEPAGE_DATA, data);
-      return data
+      return data || { categories: [], featured_products: [] };
     } catch (error) {
-      console.warn('Homepage RPC failed, using fallback:', error.message)
-      // Fallback to separate queries
-      return await db.getHomepageDataFallback()
+      console.warn('Homepage RPC failed, using fallback:', error.message);
+      try {
+        // Fallback to separate queries
+        return await db.getHomepageDataFallback();
+      } catch (fallbackError) {
+        console.error('Homepage fallback also failed:', fallbackError);
+        throw new Error(`Failed to load homepage data: ${fallbackError.message}`);
+      }
     }
   },
 
@@ -75,28 +86,39 @@ export const db = {
   getHomepageDataFallback: async () => {
     try {
       // Get categories first
-      const categories = await db.getCategories()
-      const limitedCategories = categories.slice(0, 6)
+      const categories = await db.getCategories();
+      const limitedCategories = categories.slice(0, 6);
       
-      // Get products for each category in parallel
-      const productPromises = limitedCategories.map(category => 
-        db.getProductsByCategory(category.slug, 4)
-      )
+      if (limitedCategories.length === 0) {
+        console.warn('No categories found for homepage');
+        return { categories: [], featured_products: [] };
+      }
       
-      const productResults = await Promise.all(productPromises)
+      // Get products for each category in parallel with error handling
+      const productPromises = limitedCategories.map(async (category) => {
+        try {
+          return await db.getProductsByCategory(category.slug, 4);
+        } catch (error) {
+          console.error(`Failed to fetch products for category ${category.slug}:`, error);
+          return []; // Return empty array for failed category
+        }
+      });
       
-      // Structure the data
+      const productResults = await Promise.allSettled(productPromises);
+      
+      // Structure the data, handling failed promises
       const featured_products = limitedCategories.map((category, index) => ({
         category_slug: category.slug,
-        products: productResults[index] || []
-      }))
+        products: productResults[index].status === 'fulfilled' ? productResults[index].value : []
+      }));
       
       return {
         categories: limitedCategories,
         featured_products
-      }
+      };
     } catch (error) {
-      throw error
+      console.error('Homepage fallback error:', error);
+      throw new Error(`Failed to load homepage data fallback: ${error.message}`);
     }
   },
 
@@ -118,16 +140,26 @@ export const db = {
       }
 
       const { data, error } = await query
-      if (error) throw error
-      return data
+      if (error) {
+        console.error('Supabase error fetching products:', error);
+        throw new Error(`Failed to fetch products: ${error.message}`);
+      }
+      return data || [];
     } catch (error) {
-      // Error fetching products
-      throw error
+      console.error('Error fetching products:', error);
+      if (error.message?.includes('Failed to fetch products')) {
+        throw error;
+      }
+      throw new Error(`Database error while fetching products: ${error.message}`);
     }
   },
 
   searchProducts: async (searchTerm, limit = 20) => {
     try {
+      if (!searchTerm || searchTerm.trim().length === 0) {
+        return [];
+      }
+
       const { data, error } = await supabase
         .from('products')
         .select(`
@@ -138,16 +170,26 @@ export const db = {
         .or(`name.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%,tags.cs.{${searchTerm}}`)
         .limit(limit)
 
-      if (error) throw error
-      return data
+      if (error) {
+        console.error('Supabase error searching products:', error);
+        throw new Error(`Failed to search products: ${error.message}`);
+      }
+      return data || [];
     } catch (error) {
-      // Error searching products
-      throw error
+      console.error('Error searching products:', error);
+      if (error.message?.includes('Failed to search products')) {
+        throw error;
+      }
+      throw new Error(`Search error: ${error.message}`);
     }
   },
 
   getProductsByCategory: async (categorySlug, limit = 6) => {
     try {
+      if (!categorySlug) {
+        throw new Error('Category slug is required');
+      }
+
       // Check cache first
       const cacheKey = CACHE_KEYS.PRODUCTS_BY_CATEGORY(categorySlug);
       const cached = productsCache.get(cacheKey);
@@ -170,7 +212,10 @@ export const db = {
         .eq('categories.slug', categorySlug)
         .limit(limit)
 
-      if (error) throw error
+      if (error) {
+        console.error(`Supabase error fetching products for category ${categorySlug}:`, error);
+        throw new Error(`Failed to fetch products for category: ${error.message}`);
+      }
       
       const transformedData = data?.map(product => ({
         id: product.id,
@@ -183,15 +228,22 @@ export const db = {
       
       // Cache the result
       productsCache.set(cacheKey, transformedData);
-      return transformedData
+      return transformedData;
     } catch (error) {
-      // Error fetching products by category
-      throw error
+      console.error(`Error fetching products by category ${categorySlug}:`, error);
+      if (error.message?.includes('Failed to fetch products for category')) {
+        throw error;
+      }
+      throw new Error(`Category products error: ${error.message}`);
     }
   },
 
   getAllProductsByCategory: async (categorySlug) => {
     try {
+      if (!categorySlug) {
+        throw new Error('Category slug is required');
+      }
+
       // Check cache first
       const cacheKey = CACHE_KEYS.ALL_PRODUCTS_BY_CATEGORY(categorySlug);
       const cached = productsCache.get(cacheKey);
@@ -217,38 +269,58 @@ export const db = {
         .eq('categories.slug', categorySlug)
         .order('name')
 
-      if (error) throw error
+      if (error) {
+        console.error(`Supabase error fetching all products for category ${categorySlug}:`, error);
+        throw new Error(`Failed to fetch all products for category: ${error.message}`);
+      }
       
       const result = data || [];
       // Cache the result
       productsCache.set(cacheKey, result);
-      return result
+      return result;
     } catch (error) {
-      // Error fetching all products by category
-      throw error
+      console.error(`Error fetching all products by category ${categorySlug}:`, error);
+      if (error.message?.includes('Failed to fetch all products for category')) {
+        throw error;
+      }
+      throw new Error(`All category products error: ${error.message}`);
     }
   },
 
   // Stores
   getNearbyStores: async (latitude, longitude, radiusKm = 10) => {
     try {
+      if (!latitude || !longitude) {
+        console.warn('Location coordinates not provided, returning all stores');
+      }
+
       // Simple query since RPC function doesn't exist in fresh schema
       const { data, error } = await supabase
         .from('stores')
         .select('*')
         .limit(10)
 
-      if (error) throw error
-      return data || []
+      if (error) {
+        console.error('Supabase error fetching nearby stores:', error);
+        throw new Error(`Failed to fetch nearby stores: ${error.message}`);
+      }
+      return data || [];
     } catch (error) {
-      // Error fetching nearby stores
-      throw error
+      console.error('Error fetching nearby stores:', error);
+      if (error.message?.includes('Failed to fetch nearby stores')) {
+        throw error;
+      }
+      throw new Error(`Store location error: ${error.message}`);
     }
   },
 
   // Cart operations
   getCartItems: async (userId) => {
     try {
+      if (!userId) {
+        throw new Error('User ID is required to fetch cart items');
+      }
+
       const { data, error } = await supabase
         .from('cart_items')
         .select(`
@@ -263,11 +335,17 @@ export const db = {
         `)
         .eq('user_id', userId)
 
-      if (error) throw error
-      return data
+      if (error) {
+        console.error('Supabase error fetching cart items:', error);
+        throw new Error(`Failed to fetch cart items: ${error.message}`);
+      }
+      return data || [];
     } catch (error) {
-      // Error fetching cart items
-      throw error
+      console.error('Error fetching cart items:', error);
+      if (error.message?.includes('Failed to fetch cart items')) {
+        throw error;
+      }
+      throw new Error(`Cart access error: ${error.message}`);
     }
   },
 
