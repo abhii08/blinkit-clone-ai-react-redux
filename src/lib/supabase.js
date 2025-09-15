@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js'
+import { homepageCache, categoriesCache, productsCache, CACHE_KEYS } from '../utils/cache'
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
@@ -20,6 +21,12 @@ export const db = {
   // Categories
   getCategories: async () => {
     try {
+      // Check cache first
+      const cached = categoriesCache.get(CACHE_KEYS.CATEGORIES);
+      if (cached) {
+        return cached;
+      }
+
       const { data, error } = await supabase
         .from('categories')
         .select('*')
@@ -27,9 +34,68 @@ export const db = {
         .order('sort_order')
       
       if (error) throw error
+      
+      // Cache the result
+      categoriesCache.set(CACHE_KEYS.CATEGORIES, data);
       return data
     } catch (error) {
       // Error fetching categories
+      throw error
+    }
+  },
+
+  // Optimized homepage data fetch
+  getHomepageData: async () => {
+    try {
+      // Check cache first
+      const cached = homepageCache.get(CACHE_KEYS.HOMEPAGE_DATA);
+      if (cached) {
+        return cached;
+      }
+
+      const { data, error } = await supabase.rpc('get_homepage_data')
+      
+      if (error) {
+        console.warn('RPC function not available, falling back to separate queries')
+        // Fallback to separate queries if RPC function doesn't exist
+        return await db.getHomepageDataFallback()
+      }
+      
+      // Cache the result
+      homepageCache.set(CACHE_KEYS.HOMEPAGE_DATA, data);
+      return data
+    } catch (error) {
+      console.warn('Homepage RPC failed, using fallback:', error.message)
+      // Fallback to separate queries
+      return await db.getHomepageDataFallback()
+    }
+  },
+
+  // Fallback method for homepage data
+  getHomepageDataFallback: async () => {
+    try {
+      // Get categories first
+      const categories = await db.getCategories()
+      const limitedCategories = categories.slice(0, 6)
+      
+      // Get products for each category in parallel
+      const productPromises = limitedCategories.map(category => 
+        db.getProductsByCategory(category.slug, 4)
+      )
+      
+      const productResults = await Promise.all(productPromises)
+      
+      // Structure the data
+      const featured_products = limitedCategories.map((category, index) => ({
+        category_slug: category.slug,
+        products: productResults[index] || []
+      }))
+      
+      return {
+        categories: limitedCategories,
+        featured_products
+      }
+    } catch (error) {
       throw error
     }
   },
@@ -82,6 +148,13 @@ export const db = {
 
   getProductsByCategory: async (categorySlug, limit = 6) => {
     try {
+      // Check cache first
+      const cacheKey = CACHE_KEYS.PRODUCTS_BY_CATEGORY(categorySlug);
+      const cached = productsCache.get(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
       const { data, error } = await supabase
         .from('products')
         .select(`
@@ -98,7 +171,8 @@ export const db = {
         .limit(limit)
 
       if (error) throw error
-      return data?.map(product => ({
+      
+      const transformedData = data?.map(product => ({
         id: product.id,
         name: product.name,
         price: product.price,
@@ -106,6 +180,10 @@ export const db = {
         image: product.image_url,
         time: `${product.delivery_time} MINS`
       })) || []
+      
+      // Cache the result
+      productsCache.set(cacheKey, transformedData);
+      return transformedData
     } catch (error) {
       // Error fetching products by category
       throw error
@@ -114,6 +192,13 @@ export const db = {
 
   getAllProductsByCategory: async (categorySlug) => {
     try {
+      // Check cache first
+      const cacheKey = CACHE_KEYS.ALL_PRODUCTS_BY_CATEGORY(categorySlug);
+      const cached = productsCache.get(cacheKey);
+      if (cached) {
+        return cached;
+      }
+
       const { data, error } = await supabase
         .from('products')
         .select(`
@@ -133,7 +218,11 @@ export const db = {
         .order('name')
 
       if (error) throw error
-      return data || []
+      
+      const result = data || [];
+      // Cache the result
+      productsCache.set(cacheKey, result);
+      return result
     } catch (error) {
       // Error fetching all products by category
       throw error

@@ -1,89 +1,46 @@
-import { useEffect } from 'react';
+import { useEffect, memo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch, useSelector } from 'react-redux';
-import { fetchCategories, fetchProductsByCategory } from '../../redux/slices/productsSlice';
-import { addLocalItem, incrementLocalItem, decrementLocalItem } from '../../redux/slices/cartSlice';
-import { addItemToCart, updateCartItemQuantity } from '../../redux/slices/cartSlice';
-import SimpleQuantitySelector from './SimpleQuantitySelector';
+import { fetchHomepageData, fetchCategories, fetchProductsByCategory } from '../../redux/slices/productsSlice';
+import ProductCard from './ProductCard';
 
 const CategoryGrid = () => {
   const navigate = useNavigate();
   const dispatch = useDispatch();
   
-  const { categories, productsByCategory, loading, error } = useSelector(state => state.products);
-  const { user } = useSelector(state => state.auth);
-  const { items: cartItems, localItems } = useSelector(state => state.cart);
+  const { categories, productsByCategory, homepageData, loading, error } = useSelector(state => state.products);
 
   useEffect(() => {
-    dispatch(fetchCategories());
+    // Try optimized homepage data fetch first
+    dispatch(fetchHomepageData());
   }, [dispatch]);
 
-  // Fetch products for categories once categories are loaded
+  // Fallback: If homepage data fails, use the old method
   useEffect(() => {
-    if (categories.length > 0) {
-      // Fetch products for all active categories, limiting to first 6 for homepage display
+    if (error.homepage && !loading.homepage && categories.length === 0) {
+      console.log('Homepage data fetch failed, falling back to separate queries');
+      dispatch(fetchCategories());
+    }
+  }, [error.homepage, loading.homepage, categories.length, dispatch]);
+
+  // Fallback: Fetch products for categories if using old method
+  useEffect(() => {
+    if (!homepageData && categories.length > 0 && !loading.homepage) {
       const categoriesToShow = categories.slice(0, 6);
       categoriesToShow.forEach(category => {
-        dispatch(fetchProductsByCategory({ categorySlug: category.slug, limit: 4 }));
+        if (!productsByCategory[category.slug]) {
+          dispatch(fetchProductsByCategory({ categorySlug: category.slug, limit: 4 }));
+        }
       });
     }
-  }, [categories, dispatch]);
+  }, [homepageData, categories, productsByCategory, loading.homepage, dispatch]);
 
   const handleCategoryClick = (category) => {
     navigate(`/category/${category.slug}`);
   };
 
-  // Get quantity for a product from cart
-  const getProductQuantity = (productId) => {
-    if (user) {
-      const cartItem = cartItems.find(item => item.product_id === productId);
-      return cartItem ? cartItem.quantity : 0;
-    } else {
-      const localItem = localItems.find(item => item.product_id === productId);
-      return localItem ? localItem.quantity : 0;
-    }
-  };
-
-  // Handle add to cart
-  const handleAddToCart = (product) => {
-    if (user) {
-      dispatch(addItemToCart({
-        userId: user.id,
-        productId: product.id,
-        quantity: 1
-      }));
-    } else {
-      dispatch(addLocalItem({
-        product: {
-          id: product.id,
-          name: product.name,
-          price: product.price,
-          image: product.image,
-          quantity: product.quantity
-        },
-        quantity: 1
-      }));
-    }
-  };
-
-  // Handle quantity change
-  const handleQuantityChange = (product, newQuantity) => {
-    if (user) {
-      dispatch(updateCartItemQuantity({
-        userId: user.id,
-        productId: product.id,
-        quantity: newQuantity
-      }));
-    } else {
-      if (newQuantity > getProductQuantity(product.id)) {
-        dispatch(incrementLocalItem({ productId: product.id }));
-      } else {
-        dispatch(decrementLocalItem({ productId: product.id }));
-      }
-    }
-  };
-
-  if (loading.categories) {
+  // Show loading state for homepage data or fallback categories
+  if (loading.homepage || (loading.categories && !homepageData)) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="text-center">
@@ -94,11 +51,12 @@ const CategoryGrid = () => {
     );
   }
 
-  if (error.categories) {
+  // Show error only if both homepage and fallback methods failed
+  if (error.homepage && error.categories && !homepageData && categories.length === 0) {
     return (
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div className="text-center">
-          <p className="text-red-600">Error loading categories: {error.categories}</p>
+          <p className="text-red-600">Error loading categories. Please refresh the page.</p>
         </div>
       </div>
     );
@@ -154,65 +112,13 @@ const CategoryGrid = () => {
                     <p>Loading products...</p>
                   </div>
                 ) : (
-                  products.map((product) => {
-                  const quantity = getProductQuantity(product.id);
-                  
-                  return (
-                    <div
+                  products.map((product) => (
+                    <ProductCard
                       key={product.id}
-                      className="bg-white rounded-lg border border-gray-200 p-3 hover:shadow-md transition-shadow duration-200"
-                    >
-                      {/* Product Image */}
-                      <div className="aspect-square mb-2 rounded-lg overflow-hidden bg-gray-100">
-                        <img
-                          src={product.image}
-                          alt={product.name}
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.target.src = 'https://images.unsplash.com/photo-1546868871-7041f2a55e12?w=200&h=200&fit=crop';
-                          }}
-                        />
-                      </div>
-
-                      {/* Delivery Time */}
-                      <div className="flex items-center text-xs text-gray-500 mb-1">
-                        <svg className="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                        {product.time}
-                      </div>
-
-                      {/* Product Name */}
-                      <h3 className="font-medium text-sm text-gray-900 mb-1 line-clamp-2">
-                        {product.name}
-                      </h3>
-
-                      {/* Unit */}
-                      <p className="text-xs text-gray-500 mb-2">{product.quantity}</p>
-
-                      {/* Price and Add Button Row */}
-                      <div className="flex items-center justify-between">
-                        <span className="font-semibold text-gray-900">₹{product.price}</span>
-                        
-                        {quantity === 0 ? (
-                          <button
-                            onClick={() => handleAddToCart(product)}
-                            className="bg-white border border-green-600 text-green-600 py-1.5 px-3 rounded-lg text-sm font-medium hover:bg-green-50 transition-colors duration-200 w-[60px]"
-                          >
-                            ADD
-                          </button>
-                        ) : (
-                          <SimpleQuantitySelector
-                            quantity={quantity}
-                            onIncrement={() => handleQuantityChange(product, quantity + 1)}
-                            onDecrement={() => handleQuantityChange(product, quantity - 1)}
-                            size="sm"
-                          />
-                        )}
-                      </div>
-                    </div>
-                  );
-                })
+                      product={product}
+                      categorySlug={category.slug}
+                    />
+                  ))
                 )}
               </div>
             </div>
@@ -223,4 +129,4 @@ const CategoryGrid = () => {
   );
 };
 
-export default CategoryGrid;
+export default memo(CategoryGrid);

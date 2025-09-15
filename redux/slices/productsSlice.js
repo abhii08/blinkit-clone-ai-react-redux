@@ -14,6 +14,19 @@ export const fetchCategories = createAsyncThunk(
   }
 );
 
+// Optimized homepage data fetch
+export const fetchHomepageData = createAsyncThunk(
+  'products/fetchHomepageData',
+  async (_, { rejectWithValue }) => {
+    try {
+      const homepageData = await db.getHomepageData();
+      return homepageData;
+    } catch (error) {
+      return rejectWithValue(error.message || 'Failed to fetch homepage data');
+    }
+  }
+);
+
 export const fetchProducts = createAsyncThunk(
   'products/fetchProducts',
   async ({ categoryId = null, limit = 20, offset = 0 } = {}, { rejectWithValue }) => {
@@ -68,12 +81,14 @@ const initialState = {
   productsByCategory: {},
   allProductsByCategory: {},
   searchResults: [],
+  homepageData: null,
   loading: {
     categories: false,
     products: false,
     productsByCategory: false,
     allProductsByCategory: false,
     search: false,
+    homepage: false,
   },
   error: {
     categories: null,
@@ -81,6 +96,7 @@ const initialState = {
     productsByCategory: null,
     allProductsByCategory: null,
     search: null,
+    homepage: null,
   },
   searchTerm: '',
   hasMore: true,
@@ -98,6 +114,7 @@ const productsSlice = createSlice({
         productsByCategory: null,
         allProductsByCategory: null,
         search: null,
+        homepage: null,
       };
     },
     clearError: (state, action) => {
@@ -198,6 +215,28 @@ const productsSlice = createSlice({
         state.loading.search = false;
         state.error.search = action.payload;
         state.searchResults = []; // Prevent cascade errors
+      })
+      // Fetch Homepage Data
+      .addCase(fetchHomepageData.pending, (state) => {
+        state.loading.homepage = true;
+        state.error.homepage = null;
+      })
+      .addCase(fetchHomepageData.fulfilled, (state, action) => {
+        state.loading.homepage = false;
+        state.homepageData = action.payload;
+        // Also populate categories and productsByCategory for compatibility
+        if (action.payload?.categories) {
+          state.categories = action.payload.categories;
+        }
+        if (action.payload?.featured_products) {
+          action.payload.featured_products.forEach(categoryData => {
+            state.productsByCategory[categoryData.category_slug] = categoryData.products;
+          });
+        }
+      })
+      .addCase(fetchHomepageData.rejected, (state, action) => {
+        state.loading.homepage = false;
+        state.error.homepage = action.payload;
       });
   },
 });

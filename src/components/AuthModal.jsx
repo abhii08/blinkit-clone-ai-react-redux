@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useAuth, useUI, useCart } from '../../redux/hooks';
 import { signInUser, signUpUser, clearError } from '../../redux/slices/authSlice';
 import { closeAuthModal, setAuthMode, clearPendingAction } from '../../redux/slices/uiSlice';
-import { addLocalItem, updateLocalItem, removeLocalItem } from '../../redux/slices/cartSlice';
+import { addLocalItem, updateLocalItem, removeLocalItem, addItemToCart, updateCartItemQuantity, removeItemFromCart } from '../../redux/slices/cartSlice';
 import { validation, authRateLimiter, getPasswordStrength } from '../utils/validation';
 
 const AuthModal = ({ isOpen, initialMode = 'login' }) => {
@@ -117,27 +117,31 @@ const AuthModal = ({ isOpen, initialMode = 'login' }) => {
   };
 
   const executePendingAction = (action) => {
+    // Get current user from auth state
+    const currentUser = user;
+    
+    if (!currentUser) {
+      console.error('No user found when executing pending action');
+      return;
+    }
+
     switch (action.type) {
       case 'ADD_TO_CART':
-        if (action.quantity === 1) {
-          cartDispatch(addLocalItem({
-            product: action.product,
-            quantity: 1
-          }));
-        } else {
-          cartDispatch(updateLocalItem({
-            productId: action.product.id,
-            quantity: action.quantity
-          }));
-        }
+        cartDispatch(addItemToCart({
+          userId: currentUser.id,
+          productId: action.product.id,
+          quantity: action.quantity
+        }));
         break;
       case 'UPDATE_CART':
         if (action.quantity <= 0) {
-          cartDispatch(removeLocalItem({
+          cartDispatch(removeItemFromCart({
+            userId: currentUser.id,
             productId: action.product.id
           }));
         } else {
-          cartDispatch(updateLocalItem({
+          cartDispatch(updateCartItemQuantity({
+            userId: currentUser.id,
             productId: action.product.id,
             quantity: action.quantity
           }));

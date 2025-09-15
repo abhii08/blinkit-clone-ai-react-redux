@@ -4,6 +4,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { fetchAllProductsByCategory } from '../../redux/slices/productsSlice';
 import { addLocalItem, incrementLocalItem, decrementLocalItem } from '../../redux/slices/cartSlice';
 import { addItemToCart, updateCartItemQuantity } from '../../redux/slices/cartSlice';
+import { openAuthModal, setPendingAction } from '../../redux/slices/uiSlice';
 import SimpleQuantitySelector from './SimpleQuantitySelector';
 
 const CategoryPage = () => {
@@ -49,41 +50,46 @@ const CategoryPage = () => {
 
   // Handle add to cart
   const handleAddToCart = (product) => {
-    if (user) {
-      dispatch(addItemToCart({
-        userId: user.id,
-        productId: product.id,
+    if (!user) {
+      // Store the pending action
+      dispatch(setPendingAction({
+        type: 'ADD_TO_CART',
+        product,
         quantity: 1
       }));
-    } else {
-      dispatch(addLocalItem({
-        product: {
-          id: product.id,
-          name: product.name,
-          price: product.price,
-          image: product.image_url,
-          quantity: product.unit
-        },
-        quantity: 1
-      }));
+      
+      // Open login modal
+      dispatch(openAuthModal('login'));
+      return;
     }
+
+    dispatch(addItemToCart({
+      userId: user.id,
+      productId: product.id,
+      quantity: 1
+    }));
   };
 
   // Handle quantity change
   const handleQuantityChange = (product, newQuantity) => {
-    if (user) {
-      dispatch(updateCartItemQuantity({
-        userId: user.id,
-        productId: product.id,
+    if (!user) {
+      // Store the pending action
+      dispatch(setPendingAction({
+        type: 'UPDATE_CART',
+        product,
         quantity: newQuantity
       }));
-    } else {
-      if (newQuantity > getProductQuantity(product.id)) {
-        dispatch(incrementLocalItem({ productId: product.id }));
-      } else {
-        dispatch(decrementLocalItem({ productId: product.id }));
-      }
+      
+      // Open login modal
+      dispatch(openAuthModal('login'));
+      return;
     }
+
+    dispatch(updateCartItemQuantity({
+      userId: user.id,
+      productId: product.id,
+      quantity: newQuantity
+    }));
   };
 
   if (isLoading) {
