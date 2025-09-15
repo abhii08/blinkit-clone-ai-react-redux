@@ -46,10 +46,5 @@
       "VITE_APP_VERSION": "@vite_app_version",
       "VITE_DEFAULT_DELIVERY_RADIUS": "@vite_default_delivery_radius"
     }
-  },
-  "functions": {
-    "app/api/**/*.js": {
-      "runtime": "nodejs18.x"
-    }
   }
 }
