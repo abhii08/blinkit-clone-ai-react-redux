@@ -4,8 +4,15 @@ import { homepageCache, categoriesCache, productsCache, CACHE_KEYS } from '../ut
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables. Please check your .env file.')
+// Enhanced environment variable validation
+if (!supabaseUrl || supabaseUrl === 'undefined' || !supabaseUrl.startsWith('https://')) {
+  console.error('Invalid VITE_SUPABASE_URL:', supabaseUrl)
+  throw new Error('Invalid or missing VITE_SUPABASE_URL. Please check your environment variables.')
+}
+
+if (!supabaseAnonKey || supabaseAnonKey === 'undefined' || supabaseAnonKey.length < 100) {
+  console.error('Invalid VITE_SUPABASE_ANON_KEY')
+  throw new Error('Invalid or missing VITE_SUPABASE_ANON_KEY. Please check your environment variables.')
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
