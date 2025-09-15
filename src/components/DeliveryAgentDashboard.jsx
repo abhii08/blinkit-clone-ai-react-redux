@@ -115,7 +115,7 @@ const DeliveryAgentDashboard = () => {
         setShowAuthModal(false);
         
         // Fetch agent orders
-        deliveryDispatch(fetchAgentOrders(effectiveUser.id));
+        deliveryDispatch(fetchAgentOrders(agentProfile.id));
       } catch (error) {
         console.error('Error checking agent profile:', error);
         setShowAuthModal(true);
@@ -131,6 +131,11 @@ const DeliveryAgentDashboard = () => {
     if (agentProfile?.id && isOnline) {
       console.log('Agent is online, fetching available orders...');
       fetchAvailableOrders();
+      // Also refresh agent's own orders
+      deliveryDispatch(fetchAgentOrders(agentProfile.id));
+    } else if (agentProfile?.id && !isOnline) {
+      console.log('Agent is offline, clearing available orders...');
+      setAvailableOrders([]);
     }
   }, [agentProfile?.id, isOnline]);
 
@@ -141,8 +146,11 @@ const DeliveryAgentDashboard = () => {
     const isAgentOnline = agentData.status === 'available' || agentData.status === 'busy' || agentData.status === 'delivering';
     setIsOnline(isAgentOnline);
     
-    // Fetch agent orders
-    deliveryDispatch(fetchAgentOrders(user.id));
+    // Fetch agent orders and available orders if online
+    deliveryDispatch(fetchAgentOrders(agentData.id));
+    if (isAgentOnline) {
+      fetchAvailableOrders();
+    }
   };
 
   useEffect(() => {
@@ -193,35 +201,75 @@ const DeliveryAgentDashboard = () => {
       }
 
       const subscription = supabase
-        .channel('new-orders')
+        .channel('public:orders', { config: { broadcast: { self: true } } })
         .on('postgres_changes', {
           event: 'INSERT',
           schema: 'public',
-          table: 'orders',
-          filter: 'status=eq.pending'
+          table: 'orders'
         }, (payload) => {
           console.log('New order received via real-time:', payload.new);
-          // Refresh available orders when a new order is created
-          if (isOnline) {
-            console.log('Agent is online, refreshing available orders due to new order...');
+          const newOrder = payload.new;
+          // Check if this order is available for agents (confirmed status, no agent assigned)
+          if (newOrder.status === 'confirmed' && !newOrder.delivery_agent_id && isOnline) {
+            console.log('New confirmed order available, adding to list...');
+            // Add the new order directly to the available orders list
+            setAvailableOrders(prevOrders => {
+              // Check if order already exists to avoid duplicates
+              const orderExists = prevOrders.some(order => order.id === newOrder.id);
+              if (!orderExists) {
+                return [newOrder, ...prevOrders];
+              }
+              return prevOrders;
+            });
+            // Also refresh to get complete order data with relations
             fetchAvailableOrders();
-          } else {
-            console.log('Agent is offline, not refreshing orders');
           }
         })
         .on('postgres_changes', {
           event: 'UPDATE',
           schema: 'public',
-          table: 'orders',
-          filter: 'status=eq.pending'
+          table: 'orders'
         }, (payload) => {
-          console.log('Order updated:', payload.new);
-          // Refresh available orders when order status changes
+          console.log('Order updated via real-time:', payload.new);
+          const updatedOrder = payload.new;
+          
+          // Refresh available orders if order becomes available or gets assigned
           if (isOnline) {
-            fetchAvailableOrders();
+            // If order becomes confirmed and available
+            if (updatedOrder.status === 'confirmed' && !updatedOrder.delivery_agent_id) {
+              console.log('Order became available, refreshing orders...');
+              fetchAvailableOrders();
+            }
+            // If order gets assigned to someone else, remove from available
+            else if (updatedOrder.delivery_agent_id) {
+              console.log('Order was assigned, refreshing orders...');
+              fetchAvailableOrders();
+            }
+          }
+          
+          // Update agent's own orders if this order belongs to them
+          if (updatedOrder.delivery_agent_id === agentProfile?.id) {
+            console.log('Agent order updated, refreshing agent orders...');
+            deliveryDispatch(fetchAgentOrders(agentProfile.id));
           }
         })
-        .subscribe();
+        .subscribe((status, err) => {
+          console.log('Real-time subscription status:', status);
+          if (err) {
+            console.error('Subscription error:', err);
+          }
+          if (status === 'SUBSCRIBED') {
+            console.log('Successfully subscribed to real-time orders');
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error('Channel error, attempting to reconnect...');
+            // Retry subscription after a delay
+            setTimeout(() => {
+              if (agentProfile?.id && isOnline) {
+                setupRealTimeSubscription();
+              }
+            }, 5000);
+          }
+        });
 
       setRealTimeSubscription(subscription);
     };
@@ -236,8 +284,18 @@ const DeliveryAgentDashboard = () => {
       fetchAvailableOrders();
     }
 
+    // Set up periodic refresh as fallback (every 10 seconds for testing)
+    const refreshInterval = setInterval(() => {
+      if (isOnline && agentProfile?.id) {
+        console.log('Periodic refresh of available orders...');
+        fetchAvailableOrders();
+        deliveryDispatch(fetchAgentOrders(agentProfile.id));
+      }
+    }, 10000);
+
     return () => {
       clearInterval(interval);
+      clearInterval(refreshInterval);
       if (realTimeSubscription) {
         realTimeSubscription.unsubscribe();
       }
@@ -329,11 +387,11 @@ const DeliveryAgentDashboard = () => {
       
       console.log('All recent orders:', allOrders);
       
-      // Check specifically for pending orders without agents
+      // Check specifically for confirmed orders without agents
       const { data: pendingOrders, error: pendingError } = await supabase
         .from('orders')
         .select('id, status, delivery_agent_id, created_at, user_id')
-        .eq('status', 'pending')
+        .eq('status', 'confirmed')
         .is('delivery_agent_id', null);
       
       console.log('Pending orders without agents:', pendingOrders);
@@ -355,7 +413,7 @@ const DeliveryAgentDashboard = () => {
             )
           )
         `)
-        .eq('status', 'pending')
+        .eq('status', 'confirmed')
         .is('delivery_agent_id', null)
         .order('created_at', { ascending: true });
 
@@ -388,7 +446,7 @@ const DeliveryAgentDashboard = () => {
       const { error: assignError } = await supabase
         .from('orders')
         .update({ 
-          delivery_agent_id: effectiveUser.id,
+          delivery_agent_id: agentProfile.id,
           status: 'preparing'
         })
         .eq('id', orderId);
@@ -413,7 +471,7 @@ const DeliveryAgentDashboard = () => {
 
       // Refresh orders to show updated list
       await fetchAvailableOrders();
-      deliveryDispatch(fetchAgentOrders(effectiveUser.id));
+      deliveryDispatch(fetchAgentOrders(agentProfile.id));
       
       alert('Order accepted successfully!');
     } catch (error) {

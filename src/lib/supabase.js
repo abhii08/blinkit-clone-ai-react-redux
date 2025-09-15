@@ -461,7 +461,7 @@ export const db = {
         .from('orders')
         .insert({
           ...orderInfo,
-          status: 'pending',
+          status: 'confirmed',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         })

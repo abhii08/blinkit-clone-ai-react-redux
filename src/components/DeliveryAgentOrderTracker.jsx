@@ -8,7 +8,51 @@ const DeliveryAgentOrderTracker = ({ order, agentId }) => {
   useEffect(() => {
     if (!order?.id) return;
 
-    // Subscribe to order updates to get real-time user location
+    // Use delivery location from order (provided during order placement)
+    const initializeLocation = () => {
+      let locationToUse = null;
+
+      // Priority 1: Use real-time user location if available
+      if (order.user_current_latitude && order.user_current_longitude) {
+        locationToUse = {
+          latitude: order.user_current_latitude,
+          longitude: order.user_current_longitude,
+          updated_at: order.user_location_updated_at,
+          source: 'real-time'
+        };
+      }
+      // Priority 2: Use delivery location from order placement
+      else if (order.delivery_latitude && order.delivery_longitude) {
+        locationToUse = {
+          latitude: order.delivery_latitude,
+          longitude: order.delivery_longitude,
+          updated_at: order.created_at,
+          source: 'order-placement'
+        };
+      }
+
+      if (locationToUse) {
+        setUserLocation(locationToUse);
+        
+        // Calculate distance if agent location is available
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition((position) => {
+            const agentLat = position.coords.latitude;
+            const agentLng = position.coords.longitude;
+            const userLat = locationToUse.latitude;
+            const userLng = locationToUse.longitude;
+            
+            const calculatedDistance = calculateDistance(agentLat, agentLng, userLat, userLng);
+            setDistance(calculatedDistance);
+          });
+        }
+      }
+    };
+
+    // Initialize location immediately
+    initializeLocation();
+
+    // Subscribe to order updates to get real-time user location updates
     const subscription = supabase
       .channel(`order-tracking-${order.id}`)
       .on('postgres_changes', {
@@ -22,7 +66,8 @@ const DeliveryAgentOrderTracker = ({ order, agentId }) => {
           const newUserLocation = {
             latitude: updatedOrder.user_current_latitude,
             longitude: updatedOrder.user_current_longitude,
-            updated_at: updatedOrder.user_location_updated_at
+            updated_at: updatedOrder.user_location_updated_at,
+            source: 'real-time'
           };
           setUserLocation(newUserLocation);
           
@@ -42,19 +87,10 @@ const DeliveryAgentOrderTracker = ({ order, agentId }) => {
       })
       .subscribe();
 
-    // Initial fetch of user location from order
-    if (order.user_current_latitude && order.user_current_longitude) {
-      setUserLocation({
-        latitude: order.user_current_latitude,
-        longitude: order.user_current_longitude,
-        updated_at: order.user_location_updated_at
-      });
-    }
-
     return () => {
       subscription.unsubscribe();
     };
-  }, [order?.id]);
+  }, [order?.id, order?.delivery_latitude, order?.delivery_longitude]);
 
   // Haversine formula to calculate distance between two points
   const calculateDistance = (lat1, lon1, lat2, lon2) => {
@@ -79,10 +115,10 @@ const DeliveryAgentOrderTracker = ({ order, agentId }) => {
 
   if (!userLocation) {
     return (
-      <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-4">
+      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
         <div className="flex items-center">
-          <div className="w-3 h-3 bg-gray-400 rounded-full mr-2"></div>
-          <p className="text-sm text-gray-600">Waiting for customer location...</p>
+          <div className="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
+          <p className="text-sm text-blue-700">Ready for delivery - using order address</p>
         </div>
       </div>
     );
@@ -106,6 +142,11 @@ const DeliveryAgentOrderTracker = ({ order, agentId }) => {
         <div className="text-sm text-green-700">
           <p>Lat: {userLocation.latitude.toFixed(6)}</p>
           <p>Lng: {userLocation.longitude.toFixed(6)}</p>
+          {userLocation.source && (
+            <p className="text-xs text-green-600 mt-1">
+              Source: {userLocation.source === 'real-time' ? 'Live location' : 'Delivery address'}
+            </p>
+          )}
         </div>
         
         {userLocation.updated_at && (

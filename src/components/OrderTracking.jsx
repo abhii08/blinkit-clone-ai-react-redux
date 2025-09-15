@@ -80,7 +80,7 @@ const OrderTracking = () => {
         title: 'Out for Delivery',
         description: 'Your order is on the way',
         time: new Date(baseTime.getTime() + 6 * 60 * 1000),
-        completed: ['preparing', 'out_for_delivery', 'delivered'].includes(order.status)
+        completed: ['out_for_delivery', 'delivered'].includes(order.status)
       },
       {
         status: 'delivered',
@@ -90,6 +90,17 @@ const OrderTracking = () => {
         completed: order.status === 'delivered'
       }
     ];
+
+    // Update times based on actual order timestamps if available
+    if (order.confirmed_at) {
+      history[1].time = new Date(order.confirmed_at);
+    }
+    if (order.delivery_started_at) {
+      history[2].time = new Date(order.delivery_started_at);
+    }
+    if (order.delivered_at) {
+      history[3].time = new Date(order.delivered_at);
+    }
 
     return history;
   };
@@ -178,7 +189,8 @@ const OrderTracking = () => {
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
                         step.completed 
                           ? 'bg-green-600 text-white' 
-                          : currentOrder.status === step.status
+                          : currentOrder.status === step.status || 
+                            (step.status === 'out_for_delivery' && currentOrder.status === 'preparing')
                           ? 'bg-yellow-500 text-white animate-pulse'
                           : 'bg-gray-200 text-gray-400'
                       }`}>
@@ -205,7 +217,7 @@ const OrderTracking = () => {
                           {step.title}
                         </h3>
                         <span className="text-sm text-gray-500">
-                          {step.completed && formatTime(step.time)}
+                          {step.completed ? formatTime(step.time) : ''}
                         </span>
                       </div>
                       <p className={`text-sm ${
