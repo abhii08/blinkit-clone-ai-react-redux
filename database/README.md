@@ -1,33 +1,29 @@
-# Blinkit Clone - Database Setup
+# Blinkit Clone Database
 
-This directory contains all the database files organized into logical sections for easy management and deployment.
+This directory contains all the database-related files for the Blinkit Clone application.
 
 ## File Structure
 
-### 📋 Core Files
+### Core Files (Essential for deployment)
+- `01-schema.sql` - Complete database schema including tables, indexes, functions, and triggers
+- `02-seed-data.sql` - Sample data for categories, products, stores, and inventory  
+- `03-migrations.sql` - All migration scripts consolidated for schema updates and fixes
+- `04-utilities.sql` - Utility functions for development and maintenance
+- `DEPLOY.sql` - Final deployment verification and optimization script
 
-| File | Purpose | Run Order |
-|------|---------|-----------|
-| `01-schema.sql` | Complete database schema with tables, indexes, functions, and triggers | **1st** |
-| `02-seed-data.sql` | Sample data for categories, products, stores, and inventory | **2nd** |
-| `03-migrations.sql` | Database migration scripts for updates and fixes | **3rd** |
-| `04-utilities.sql` | Utility functions for development and maintenance | **4th** |
+### 🗂️ Consolidated Files (Removed)
 
-### 🗂️ Legacy Files (Archived)
+The following redundant files have been consolidated and removed for cleaner deployment:
 
-The following files have been consolidated into the organized structure above:
-
-- `complete-schema.sql` → Merged into `01-schema.sql`
-- `seed-data.sql` → Renamed to `02-seed-data.sql`
-- `add-total-price-column.sql` → Merged into `03-migrations.sql`
-- `complete-delivery-agent-setup.sql` → Merged into `01-schema.sql`
-- `create-agent-notifications-table.sql` → Merged into `01-schema.sql`
-- `create-delivery-agents-table.sql` → Merged into `01-schema.sql`
-- `delivery-agent-schema.sql` → Merged into `01-schema.sql`
-- `disable-rls-test.sql` → Merged into `03-migrations.sql`
-- `emergency-fix.sql` → Merged into `03-migrations.sql`
-- `fix-delivery-agent-rls.sql` → Merged into `03-migrations.sql`
-- `user-app-schema.sql` → Merged into `01-schema.sql`
+- `optimize-homepage-performance.sql` → Merged into `03-migrations.sql`
+- `fix-order-assignment-rls.sql` → Merged into `03-migrations.sql`
+- `fix-rls-policy-comprehensive.sql` → Merged into `03-migrations.sql`
+- `fix-order-assignment-policy.sql` → Merged into `03-migrations.sql`
+- `fix-delivery-agent-order-access.sql` → Merged into `03-migrations.sql`
+- `fix-order-status-flow.sql` → Merged into `03-migrations.sql`
+- `add-user-location-tracking.sql` → Merged into `03-migrations.sql`
+- `test-homepage-function.sql` → Testing functionality moved to `04-utilities.sql`
+- `EXECUTE_THIS_IN_SUPABASE.sql` → Replaced by `DEPLOY.sql`
 
 ## 🚀 Quick Setup
 
@@ -43,19 +39,23 @@ The following files have been consolidated into the organized structure above:
 -- 3. Load sample data
 \i 02-seed-data.sql
 
--- 4. Apply any necessary migrations
+-- 4. Apply migrations and optimizations
 \i 03-migrations.sql
 
 -- 5. Load utility functions
 \i 04-utilities.sql
+
+-- 6. Final deployment verification
+\i DEPLOY.sql
 ```
 
 ### For Existing Installation
 
 ```sql
--- Only run migrations and utilities
+-- Only run migrations, utilities, and deployment verification
 \i 03-migrations.sql
 \i 04-utilities.sql
+\i DEPLOY.sql
 ```
 
 ## 📊 Database Schema Overview

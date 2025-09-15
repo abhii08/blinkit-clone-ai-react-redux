@@ -29,7 +29,159 @@ BEGIN
 END
 $$;
 
--- Migration 002: Fix user metadata for delivery agent distinction
+-- Migration 002: Comprehensive RLS Policy Fix for Order Assignment
+-- Date: 2024-01-16
+-- Description: Fixes RLS policies to allow proper order assignment by delivery agents
+DO $$
+BEGIN
+    -- Drop existing problematic policies
+    DROP POLICY IF EXISTS "Users can update their own orders" ON orders;
+    DROP POLICY IF EXISTS "Agents can view orders assigned to them" ON orders;
+    DROP POLICY IF EXISTS "Agents can update orders assigned to them" ON orders;
+    DROP POLICY IF EXISTS "System can assign delivery agents to orders" ON orders;
+    DROP POLICY IF EXISTS "Agents can view unassigned orders" ON orders;
+    DROP POLICY IF EXISTS "Agents can accept unassigned orders" ON orders;
+    DROP POLICY IF EXISTS "Agents can assign themselves to orders" ON orders;
+
+    -- Create comprehensive user policies
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies 
+        WHERE tablename = 'orders' 
+        AND policyname = 'Users can update their own orders'
+    ) THEN
+        CREATE POLICY "Users can update their own orders" ON orders 
+        FOR UPDATE 
+        USING (auth.uid() = user_id);
+    END IF;
+
+    -- Create comprehensive agent policies
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies 
+        WHERE tablename = 'orders' 
+        AND policyname = 'Agents can view all orders for assignment'
+    ) THEN
+        CREATE POLICY "Agents can view all orders for assignment" ON orders 
+        FOR SELECT 
+        USING (
+          EXISTS (
+            SELECT 1 FROM delivery_agents 
+            WHERE user_id = auth.uid() 
+            AND is_active = true
+          )
+        );
+    END IF;
+
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_policies 
+        WHERE tablename = 'orders' 
+        AND policyname = 'Agents can accept and update orders'
+    ) THEN
+        CREATE POLICY "Agents can accept and update orders" ON orders 
+        FOR UPDATE 
+        USING (
+          EXISTS (
+            SELECT 1 FROM delivery_agents 
+            WHERE user_id = auth.uid() 
+            AND is_active = true
+          )
+        )
+        WITH CHECK (
+          -- Allow agents to assign orders to themselves or update their assigned orders
+          delivery_agent_id IN (
+            SELECT id FROM delivery_agents WHERE user_id = auth.uid()
+          )
+        );
+    END IF;
+
+    RAISE NOTICE 'Migration 002: Updated RLS policies for order assignment';
+END
+$$;
+
+-- Migration 003: Homepage Performance Optimization
+-- Date: 2024-01-16
+-- Description: Adds optimized function for homepage data fetching
+DO $$
+BEGIN
+    -- Create optimized homepage data function
+    CREATE OR REPLACE FUNCTION get_homepage_data()
+    RETURNS JSON AS $func$
+    DECLARE
+        result JSON;
+    BEGIN
+        SELECT json_build_object(
+            'categories', categories_data.categories,
+            'featured_products', products_data.products
+        ) INTO result
+        FROM (
+            -- Get categories
+            SELECT json_agg(
+                json_build_object(
+                    'id', c.id,
+                    'name', c.name,
+                    'slug', c.slug,
+                    'description', c.description,
+                    'image_url', c.image_url,
+                    'sort_order', c.sort_order
+                ) ORDER BY c.sort_order
+            ) as categories
+            FROM categories c
+            WHERE c.is_active = true
+            LIMIT 6
+        ) categories_data,
+        (
+            -- Get featured products for each category
+            SELECT json_agg(
+                json_build_object(
+                    'category_slug', category_products.category_slug,
+                    'products', category_products.products
+                ) ORDER BY category_products.sort_order
+            ) as products
+            FROM (
+                SELECT 
+                    cat.slug as category_slug,
+                    cat.sort_order,
+                    json_agg(
+                        json_build_object(
+                            'id', p.id,
+                            'name', p.name,
+                            'price', p.price,
+                            'unit', p.unit,
+                            'image_url', p.image_url,
+                            'delivery_time', p.delivery_time,
+                            'mrp', p.mrp
+                        ) ORDER BY p.created_at DESC
+                    ) as products
+                FROM categories cat
+                INNER JOIN products p ON p.category_id = cat.id
+                WHERE cat.is_active = true 
+                    AND p.is_active = true
+                    AND cat.id IN (
+                        SELECT id FROM categories 
+                        WHERE is_active = true 
+                        ORDER BY sort_order 
+                        LIMIT 6
+                    )
+                GROUP BY cat.id, cat.slug, cat.sort_order
+                ORDER BY cat.sort_order
+            ) category_products
+        ) products_data;
+        
+        RETURN result;
+    END;
+    $func$ LANGUAGE plpgsql;
+
+    -- Create performance indexes
+    CREATE INDEX IF NOT EXISTS idx_products_category_active ON products(category_id, is_active, created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_categories_active_sort ON categories(is_active, sort_order);
+
+    -- Grant execute permission
+    GRANT EXECUTE ON FUNCTION get_homepage_data() TO anon, authenticated;
+
+    RAISE NOTICE 'Migration 003: Added homepage performance optimization';
+END
+$$;
+
+-- Migration 004: Fix user metadata for delivery agent distinction
 -- Date: 2024-01-16
 -- Description: Updates auth.users metadata to distinguish between users and delivery agents
 DO $$
@@ -39,15 +191,34 @@ BEGIN
     SET raw_user_meta_data = COALESCE(raw_user_meta_data, '{}'::jsonb) || '{"user_type": "user"}'::jsonb
     WHERE raw_user_meta_data IS NULL OR NOT raw_user_meta_data ? 'user_type';
     
-    -- Update users who are delivery agents to have user_type = 'delivery_agent'
+    -- Update delivery agents to have user_type = 'delivery_agent'
     UPDATE auth.users 
     SET raw_user_meta_data = raw_user_meta_data || '{"user_type": "delivery_agent"}'::jsonb
-    WHERE id IN (
-        SELECT user_id 
-        FROM public.delivery_agents
-    );
+    WHERE id IN (SELECT user_id FROM delivery_agents);
     
-    RAISE NOTICE 'Migration 002: Updated user metadata for delivery agent distinction';
+    RAISE NOTICE 'Migration 004: Updated user metadata for role distinction';
+END
+$$;
+
+-- Migration 005: Add user location tracking
+-- Date: 2024-01-16
+-- Description: Adds user location tracking for delivery optimization
+DO $$
+BEGIN
+    -- Add location tracking columns to users table if they don't exist
+    IF NOT EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'users' 
+        AND column_name = 'last_latitude'
+    ) THEN
+        ALTER TABLE users ADD COLUMN last_latitude DECIMAL(10, 8);
+        ALTER TABLE users ADD COLUMN last_longitude DECIMAL(11, 8);
+        ALTER TABLE users ADD COLUMN last_location_update TIMESTAMP WITH TIME ZONE;
+        
+        RAISE NOTICE 'Migration 005: Added user location tracking columns';
+    ELSE
+        RAISE NOTICE 'Migration 005: User location tracking columns already exist, skipping';
+    END IF;
 END
 $$;
 
