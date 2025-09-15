@@ -709,15 +709,31 @@ export const db = {
 
   // Real-time tracking
   subscribeToOrderUpdates: (orderId, callback) => {
-    return supabase
-      .channel(`order-${orderId}`)
+    const channel = supabase
+      .channel(`order-updates-${orderId}`, { 
+        config: { 
+          broadcast: { self: true },
+          presence: { key: orderId }
+        } 
+      })
       .on('postgres_changes', {
         event: 'UPDATE',
         schema: 'public',
         table: 'orders',
         filter: `id=eq.${orderId}`
-      }, callback)
-      .subscribe()
+      }, (payload) => {
+        console.log('Order update received for user:', payload);
+        if (callback) callback(payload);
+      })
+      .subscribe((status, err) => {
+        console.log('Order subscription status:', status);
+        if (err) console.error('Order subscription error:', err);
+        if (status === 'SUBSCRIBED') {
+          console.log(`Successfully subscribed to order ${orderId} updates`);
+        }
+      });
+    
+    return channel;
   },
 
   subscribeToAgentLocation: (agentId, callback) => {

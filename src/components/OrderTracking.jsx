@@ -21,16 +21,23 @@ const OrderTracking = () => {
 
   useEffect(() => {
     if (orderId) {
-      // Fetch order details
+      // Fetch order details initially
       orderDispatch(fetchOrderById(orderId));
       
       // Subscribe to real-time order updates
       subscriptionRef.current = orderDispatch(subscribeToOrderUpdates(orderId));
       
+      // Add periodic refresh as backup (every 10 seconds)
+      const statusRefreshInterval = setInterval(() => {
+        console.log('Refreshing order status for real-time updates...');
+        orderDispatch(fetchOrderById(orderId));
+      }, 10000);
+      
       return () => {
         if (subscriptionRef.current) {
           subscriptionRef.current();
         }
+        clearInterval(statusRefreshInterval);
       };
     }
   }, [orderId, orderDispatch]);
@@ -56,7 +63,7 @@ const OrderTracking = () => {
       const history = generateStatusHistory(currentOrder);
       setOrderStatusHistory(history);
     }
-  }, [currentOrder]);
+  }, [currentOrder?.status, currentOrder?.confirmed_at, currentOrder?.delivery_started_at, currentOrder?.delivered_at]);
 
   const generateStatusHistory = (order) => {
     const baseTime = new Date(order.created_at);
@@ -369,7 +376,7 @@ const OrderTracking = () => {
             View All Orders
           </button>
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/home')}
             className="flex-1 bg-green-600 text-white py-3 px-4 rounded-lg font-medium hover:bg-green-700 transition-colors"
           >
             Continue Shopping

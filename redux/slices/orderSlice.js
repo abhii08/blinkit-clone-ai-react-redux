@@ -72,9 +72,13 @@ export const subscribeToOrderUpdates = (orderId) => {
   return (dispatch) => {
     // Set up real-time subscription for order updates
     const subscription = db.subscribeToOrderUpdates(orderId, (payload) => {
+      console.log('Order update received in Redux:', payload);
       if (payload && payload.new) {
         const updatedOrder = payload.new;
+        console.log('Dispatching order update:', updatedOrder);
         dispatch(updateOrderInList(updatedOrder));
+        // Also update current order if it matches
+        dispatch(setCurrentOrder(updatedOrder));
       }
     });
 
