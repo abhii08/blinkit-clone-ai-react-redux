@@ -2,8 +2,6 @@
 
 A comprehensive, production-ready grocery delivery application built with React 19, Redux Toolkit, and Supabase. This project replicates Blinkit's core functionality with real-time order tracking, delivery agent management, and seamless user experience.
 
-![Blinkit Clone](https://images.unsplash.com/photo-1556909114-f6e7ad7d3136?w=1200&h=400&fit=crop&crop=center)
-
 ## 🌟 Key Features
 
 ### 🛍️ Customer Experience
@@ -31,13 +29,8 @@ A comprehensive, production-ready grocery delivery application built with React 
 
 ## 🚀 Live Demo
 
-**Customer Interface:** [View Demo](https://your-app-name.vercel.app/home)
-**Delivery Dashboard:** [View Demo](https://your-app-name.vercel.app/delivery-dashboard)
-
-## 📱 Screenshots
-
-<details>
-<summary>View Screenshots</summary>
+**Customer Interface:** [View Demo](https://blinkitcloneaireactredux.vercel.app/)
+**Delivery Dashboard:** [View Demo](https://blinkitcloneaireactredux.vercel.app/)
 
 ### Customer Interface
 - **Homepage:** Product categories and featured items
@@ -50,8 +43,6 @@ A comprehensive, production-ready grocery delivery application built with React 
 - **Live Tracking:** Real-time customer location tracking
 - **Performance Stats:** Delivery metrics and earnings overview
 - **Status Management:** Online/offline status with location sharing
-
-</details>
 
 ## 🛠️ Tech Stack
 
@@ -72,7 +63,6 @@ A comprehensive, production-ready grocery delivery application built with React 
 ### External Services
 - **Google Maps API** - Location services and mapping
 - **Google Places API** - Address autocomplete and geocoding
-- **Payment Gateways** - Razorpay and Stripe integration ready
 
 ## 📋 Prerequisites
 
@@ -89,7 +79,7 @@ Before you begin, ensure you have:
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/yourusername/blinkit-clone.git
+git clone 
 cd blinkit-clone
 ```
 
@@ -553,9 +543,6 @@ npx vite-bundle-analyzer dist
 - [ ] AI-powered recommendations
 - [ ] Subscription services
 
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## 🙏 Acknowledgments
 
@@ -574,21 +561,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - [Delivery Setup Guide](./DELIVERY_SETUP.md)
 
 ### Community
-- **Issues** - [GitHub Issues](https://github.com/yourusername/blinkit-clone/issues)
-- **Discussions** - [GitHub Discussions](https://github.com/yourusername/blinkit-clone/discussions)
-- **Email** - support@yourapp.com
+- **Email** - abhinavsharma392@gmail.com
 
 ### Professional Support
-For enterprise support, custom development, or consulting services, please contact us at enterprise@yourapp.com.
-
----
-
-## 🌟 Star History
-
-[![Star History Chart](https://api.star-history.com/svg?repos=yourusername/blinkit-clone&type=Date)](https://star-history.com/#yourusername/blinkit-clone&Date)
-
----
-
-**Built with ❤️ by [Your Name](https://github.com/yourusername)**
+For enterprise support, custom development, or consulting services, please contact us at https://portfolio-snowy-beta-24.vercel.app/.
 
 *This project is for educational purposes. Blinkit is a trademark of Blink Commerce Private Limited.*
