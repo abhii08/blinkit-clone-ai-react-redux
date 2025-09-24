@@ -79,7 +79,7 @@ Before you begin, ensure you have:
 ### 1. Clone the Repository
 
 ```bash
-git clone 
+git clone https://github.com/abhii08/blinkit-clone-ai-react-redux.git
 cd blinkit-clone
 ```
 
